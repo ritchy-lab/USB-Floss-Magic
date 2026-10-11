@@ -718,6 +718,7 @@ class USBFlossMagicApp(ctk.CTk):
         popup.resizable(False, False)
         popup.transient(self)
         popup.configure(fg_color=BG_MAIN)
+        popup.withdraw()                       # ← cache la fenêtre tout de suite
         popup.overrideredirect(True)
         popup.bind("<Escape>", lambda e: popup.destroy())
 
@@ -769,6 +770,12 @@ class USBFlossMagicApp(ctk.CTk):
             ("text", "Certains dossiers protégés par le système (comme"),
             ("text", ".Spotlight-V100 et .Trashes) sont laissés en place."),
             ("text", "Ils ne gênent pas et sont recréés automatiquement."),
+            ("space", ""),
+            ("title2", "Limite de taille"),
+            ("text", "Seules les clés USB et disques externes de moins"),
+            ("text", "de 256 Go sont proposés automatiquement dans la liste."),
+            ("text", "Au-delà, la clé n'apparaît pas : utilisez la ligne"),
+            ("text", "de commande usbfloss.py en mode direct si besoin."),
             ("space", ""),
             ("title2", "Voir le détail"),
             ("text", "Clique sur « X élément(s) trouvé(s) » pour voir"),
@@ -846,10 +853,14 @@ class USBFlossMagicApp(ctk.CTk):
         y = self.winfo_y() + (self.winfo_height() - h) // 2
         popup.geometry(f"{w}x{h}+{max(x, 0)}+{max(y, 0)}")
 
+        # Affiche la fenêtre une fois positionnée
+        popup.deiconify()
+        popup.lift()
+        popup.focus_force()
+
         def _grab():
             try:
                 popup.grab_set()
-                popup.focus_set()
             except tk.TclError:
                 pass
         popup.after(150, _grab)
