@@ -15,7 +15,6 @@ import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageTk
 
-
 from usbfloss import list_volumes, format_size, scan, delete
 
 log = logging.getLogger("usbfloss.gui")
@@ -55,21 +54,21 @@ WIN_H = 620
 
 BORDER_MARGIN = 8
 BORDER_WIDTH = 1
-LOGO_WIDTH_OFFSET = 50   # marge horizontale du bandeau (px retirés)
+LOGO_WIDTH_OFFSET = 50
 
-# Zone intérieure (à l'intérieur du double liseré)
 INNER_X0 = BORDER_MARGIN + 8
 INNER_Y0 = BORDER_MARGIN + 8
 INNER_W = WIN_W - 2 * INNER_X0
 INNER_H = WIN_H - 2 * INNER_Y0
 
-SHADOW_COLOR = "#001018"   # ombre des textes (lisibilité sur le fond)
-EJECT_BOX_GAP = 4          # px entre la case ✗/✓ et le texte « Nettoyer et Éjecter »
-VOL_BRACKET_GAP = 10       # px entre « > », le nom du volume et « < »
+SHADOW_COLOR = "#001018"
+EJECT_BOX_GAP = 4
+VOL_BRACKET_GAP = 10
 CURSOR_HAND = "pointinghand" if sys.platform == "darwin" else "hand2"
 
-BOTTOM_LINE_1_OFFSET = 85   # distance du bas de la fenêtre pour élément et éjecter
-BOTTOM_LINE_2_OFFSET = 55   # distance du bas de la fenêtre pour la ligne nom du disque
+BOTTOM_LINE_1_OFFSET = 85
+BOTTOM_LINE_2_OFFSET = 55
+HELP_LINE_OFFSET = 35
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -89,13 +88,13 @@ POPUP_WARNING_PATH = _res("popup_warning.png")
 POPUP_ERROR_PATH = _res("popup_error.png")
 
 BTN_SIZE = 340
-BTN_INNER_RADIUS = 90   # rayon de la zone cliquable (le rond rouge central)
+BTN_INNER_RADIUS = 90
 
-VOLUME_CHECK_INTERVAL = 2000   # ms : détection branchement / débranchement
-RESCAN_INTERVAL = 5000         # ms : rescan du contenu du volume courant
-QUEUE_POLL_INTERVAL = 100      # ms : lecture des résultats des threads
-EJECT_TIMEOUT = 30             # s  : délai max de diskutil eject
-MAX_POPUP_ROWS = 2000          # lignes max affichées dans la fenêtre liste
+VOLUME_CHECK_INTERVAL = 2000
+RESCAN_INTERVAL = 5000
+QUEUE_POLL_INTERVAL = 100
+EJECT_TIMEOUT = 30
+MAX_POPUP_ROWS = 2000
 
 PROTECTED_NAMES = {
     ".Spotlight-V100",
@@ -107,10 +106,6 @@ PROTECTED_NAMES = {
 APP_VERSION = "0.5-magic"
 
 
-# ------------------------------------------------------------------
-# Texte dessiné sur le Canvas (avec une ombre pour rester lisible
-# sur le fond image)
-# ------------------------------------------------------------------
 class _CanvasLabel:
     def __init__(self, canvas, x, y, text, font, fill,
                  anchor="w", tags=(), on_change=None):
@@ -142,9 +137,6 @@ class _CanvasLabel:
         return self.canvas.bbox(self._id)
 
 
-# ------------------------------------------------------------------
-# Application
-# ------------------------------------------------------------------
 class USBFlossMagicApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -154,8 +146,6 @@ class USBFlossMagicApp(ctk.CTk):
         self.resizable(False, False)
         self.configure(fg_color=BG_MAIN)
 
-        # Centre la fenêtre sur l'écran (nécessaire car
-        # overrideredirect empêche macOS de la placer)
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
         x = (screen_w - WIN_W) // 2
@@ -164,20 +154,19 @@ class USBFlossMagicApp(ctk.CTk):
 
         self.volumes = []
         self.current_volume = None
-        self.all_junk = []          # tout ce que scan() a trouvé
-        self.current_junk = []      # supprimable (hors protégés)
-        self.protected_junk = []    # ignoré
+        self.all_junk = []
+        self.current_junk = []
+        self.protected_junk = []
         self._last_volumes_state = None
         self._last_junk_signature = None
         self._images = {}
         self._eject = False
         self._hovering_button = False
 
-        # Threads : scan / suppression ne bloquent plus l'interface
         self._results = queue.Queue()
         self._scan_running = False
         self._scan_pending = False
-        self._busy = False          # suppression / éjection en cours
+        self._busy = False
         self._closing = False
 
         self._drag_x = 0
@@ -191,18 +180,14 @@ class USBFlossMagicApp(ctk.CTk):
         self._build_clean_it_label()
         self._build_bottom_bar()
 
-        # Déplacement de la fenêtre
         self._bind_drag()
 
-        # Retire la barre macOS pendant que la fenêtre est cachée,
-        # puis l'affiche : plus de flash de la barre au lancement
         self.update_idletasks()
         self.overrideredirect(True)
         self.deiconify()
         self.lift()
         self.focus_force()
 
-        # Les boucles démarrent après l'affichage de la fenêtre
         self.after(100, self._poll_results)
         self.after(100, self._tick_volumes)
         self.after(100, self._tick_rescan)
@@ -210,15 +195,12 @@ class USBFlossMagicApp(ctk.CTk):
     def destroy(self):
         self._closing = True
 
-        # Annule tous les callbacks programmés avant de détruire
-        # (sinon Tkinter plante à la sortie sur macOS)
         for after_id in self.tk.call('after', 'info'):
             try:
                 self.after_cancel(after_id)
             except Exception:
                 pass
 
-            # Vide les images avant destruction
         try:
             self.canvas.delete("all")
             self._images.clear()
@@ -228,9 +210,6 @@ class USBFlossMagicApp(ctk.CTk):
 
         super().destroy()
 
-    # ------------------------------------------------------------------
-    # Canvas (fond image + liserés) : tout le visuel est dessiné dessus
-    # ------------------------------------------------------------------
     def _build_canvas(self):
         self.canvas = tk.Canvas(
             self,
@@ -243,7 +222,6 @@ class USBFlossMagicApp(ctk.CTk):
         self.canvas.pack(fill="both", expand=True)
 
     def _bind_tag(self, tag, on_click=None, on_enter=None, on_leave=None, hand=True):
-        """Branche clic / survol sur tous les éléments portant ce tag."""
         def enter(e):
             if hand:
                 self.canvas.configure(cursor=CURSOR_HAND)
@@ -261,11 +239,7 @@ class USBFlossMagicApp(ctk.CTk):
         if on_click:
             self.canvas.tag_bind(tag, "<Button-1>", lambda e: on_click())
 
-    # ------------------------------------------------------------------
-    # Images
-    # ------------------------------------------------------------------
     def _load_photo(self, path, width):
-        """Charge un PNG (alpha conservé) redimensionné à `width`, ratio gardé."""
         if not os.path.exists(path):
             log.warning("Image manquante : %s", path)
             return None
@@ -279,7 +253,6 @@ class USBFlossMagicApp(ctk.CTk):
             return None
 
     def _make_background(self):
-        """Fond + double liseré, assemblés en une seule image."""
         bg = None
         if os.path.exists(BACKGROUND_PATH):
             try:
@@ -294,7 +267,6 @@ class USBFlossMagicApp(ctk.CTk):
         if bg is None:
             bg = Image.new("RGBA", (WIN_W, WIN_H), BG_MAIN)
 
-        # Liserés dessinés en 4x puis réduits (bords lissés)
         k = 4
         overlay = Image.new("RGBA", (WIN_W * k, WIN_H * k), (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
@@ -320,12 +292,10 @@ class USBFlossMagicApp(ctk.CTk):
                 log.warning("Erreur chargement %s : %s", path, e)
                 return None
 
-        # Icônes des popups (widgets CTk)
         self._images["popup_success"] = load_ctk(POPUP_SUCCESS_PATH, (64, 64))
         self._images["popup_warning"] = load_ctk(POPUP_WARNING_PATH, (64, 64))
         self._images["popup_error"] = load_ctk(POPUP_ERROR_PATH, (64, 64))
 
-        # Images dessinées sur le canvas (références à conserver)
         self._images["bg"] = self._make_background()
         self._images["logo"] = self._load_photo(LOGO_PATH, WIN_W - LOGO_WIDTH_OFFSET)
         self._btn_photos = {
@@ -336,9 +306,6 @@ class USBFlossMagicApp(ctk.CTk):
 
         self.canvas.create_image(0, 0, image=self._images["bg"], anchor="nw")
 
-    # ------------------------------------------------------------------
-    # Bandeau
-    # ------------------------------------------------------------------
     def _build_header(self):
         if self._images.get("logo"):
             self.canvas.create_image(
@@ -367,9 +334,6 @@ class USBFlossMagicApp(ctk.CTk):
             on_leave=lambda e: self.quit_btn.configure(fg=TEXT_GREY),
         )
 
-    # ------------------------------------------------------------------
-    # Bouton central + « Clean it »
-    # ------------------------------------------------------------------
     def _build_central_button(self):
         photo = self._btn_photos.get("idle")
         cx = WIN_W // 2
@@ -382,8 +346,6 @@ class USBFlossMagicApp(ctk.CTk):
             tags=("btn",),
         )
 
-        # Zone cliquable : cercle invisible au centre du bouton
-        # (représente le rond rouge intérieur)
         r = BTN_INNER_RADIUS
         self.canvas.create_oval(
             cx - r, cy - r,
@@ -405,16 +367,12 @@ class USBFlossMagicApp(ctk.CTk):
             tags=("clean_it",),
         )
 
-        # Zone cliquable centrale du bouton (rond rouge)
         self._bind_tag(
             "btn_zone",
             on_click=self._on_central_click,
             on_enter=self._on_btn_enter,
             on_leave=self._on_btn_leave,
         )
-
-        # Clean it : aucune interaction (ni clic ni survol propre)
-        # La couleur change uniquement au survol du bouton (tag "btn_zone")
 
     def _on_btn_enter(self, event):
         self._hovering_button = True
@@ -424,14 +382,10 @@ class USBFlossMagicApp(ctk.CTk):
         self._hovering_button = False
         self._refresh_visual()
 
-    # ------------------------------------------------------------------
-    # Barre du bas
-    # ------------------------------------------------------------------
     def _build_bottom_bar(self):
         left = INNER_X0 + 30
         right = INNER_X0 + INNER_W - 30
 
-        # ----- Ligne 1 : compteur (gauche) + éjecter (droite) -----
         y1 = INNER_Y0 + WIN_H - 2 * BORDER_MARGIN - 6 - BOTTOM_LINE_1_OFFSET
 
         self.counter_label = _CanvasLabel(
@@ -443,7 +397,6 @@ class USBFlossMagicApp(ctk.CTk):
             on_click=lambda: self._on_counter_click(None),
         )
 
-        # Éjecter : texte aligné à droite, case juste à gauche du texte
         self.eject_text = _CanvasLabel(
             self.canvas, right, y1, "Nettoyer et Éjecter",
             (FONT_MAIN, 10), TEXT_GREY, anchor="e", tags=("eject",),
@@ -455,7 +408,6 @@ class USBFlossMagicApp(ctk.CTk):
         )
         self._bind_tag("eject", on_click=self._toggle_eject)
 
-        # ----- Ligne 2 : > DRIVE64 < (à droite) -----
         self._vol_y = INNER_Y0 + WIN_H - 2 * BORDER_MARGIN - 6 - BOTTOM_LINE_2_OFFSET
         self._vol_right_x = right
 
@@ -475,17 +427,26 @@ class USBFlossMagicApp(ctk.CTk):
         self._bind_tag("vol", on_click=self._open_volume_menu)
         self._layout_volume_line()
 
+        y3 = INNER_Y0 + WIN_H - 2 * BORDER_MARGIN - 6 - HELP_LINE_OFFSET
+
+        self.help_btn = _CanvasLabel(
+            self.canvas, left, y3, "?",
+            (FONT_MAIN, 12, "bold"), TEXT_DIM, anchor="w", tags=("help",),
+        )
+        self._bind_tag(
+            "help",
+            on_click=self._open_help,
+            on_enter=lambda e: self.help_btn.configure(fg=CYAN),
+            on_leave=lambda e: self.help_btn.configure(fg=TEXT_DIM),
+        )
+
     def _layout_volume_line(self):
-        """Recale « > nom < » depuis la droite : le nom change de largeur."""
         self.vol_right.move_to(self._vol_right_x, self._vol_y)
         x = self.vol_right.bbox()[0] - VOL_BRACKET_GAP
         self.vol_name.move_to(x, self._vol_y)
         x = self.vol_name.bbox()[0] - VOL_BRACKET_GAP
         self.vol_left.move_to(x, self._vol_y)
 
-    # ------------------------------------------------------------------
-    # Toggle éjecter
-    # ------------------------------------------------------------------
     def _toggle_eject(self):
         self._eject = not self._eject
         if self._eject:
@@ -495,16 +456,11 @@ class USBFlossMagicApp(ctk.CTk):
             self.eject_box.configure(text="✗", fg=TEXT_GREY)
             self.eject_text.configure(fg=TEXT_GREY)
 
-    # ------------------------------------------------------------------
-    # Déplacement de la fenêtre (clic-glisser sur le bandeau)
-    # ------------------------------------------------------------------
     def _bind_drag(self):
-        """Attache les événements de drag uniquement au bandeau logo."""
         self.canvas.tag_bind("logo", "<Button-1>", self._start_drag)
         self.canvas.tag_bind("logo", "<B1-Motion>", self._do_drag)
 
     def _start_drag(self, event):
-        # Décalage entre le curseur (écran) et le coin de la fenêtre
         self._drag_x = event.x_root - self.winfo_x()
         self._drag_y = event.y_root - self.winfo_y()
 
@@ -513,9 +469,6 @@ class USBFlossMagicApp(ctk.CTk):
         y = event.y_root - self._drag_y
         self.geometry(f"+{x}+{y}")
 
-    # ------------------------------------------------------------------
-    # Menu des volumes
-    # ------------------------------------------------------------------
     def _open_volume_menu(self):
         if not self.volumes:
             return
@@ -537,9 +490,6 @@ class USBFlossMagicApp(ctk.CTk):
         self._last_junk_signature = None
         self._request_scan()
 
-    # ------------------------------------------------------------------
-    # Boucles périodiques (jamais interrompues par une exception)
-    # ------------------------------------------------------------------
     def _tick_volumes(self):
         if self._closing:
             return
@@ -561,7 +511,6 @@ class USBFlossMagicApp(ctk.CTk):
             self.after(RESCAN_INTERVAL, self._tick_rescan)
 
     def _poll_results(self):
-        """Lit, dans le thread de l'interface, les résultats des threads."""
         if self._closing:
             return
         try:
@@ -580,9 +529,6 @@ class USBFlossMagicApp(ctk.CTk):
         finally:
             self.after(QUEUE_POLL_INTERVAL, self._poll_results)
 
-    # ------------------------------------------------------------------
-    # Volumes
-    # ------------------------------------------------------------------
     def _check_volumes(self):
         new_volumes = list_volumes()
         new_state = tuple((str(v), s) for v, s in new_volumes)
@@ -608,14 +554,11 @@ class USBFlossMagicApp(ctk.CTk):
         self.vol_name.configure(text=self.current_volume.name)
         self._request_scan()
 
-    # ------------------------------------------------------------------
-    # Scan (thread) — un seul scan à la fois
-    # ------------------------------------------------------------------
     def _request_scan(self):
         if self.current_volume is None or self._busy:
             return
         if self._scan_running:
-            self._scan_pending = True   # relancé dès la fin du scan en cours
+            self._scan_pending = True
             return
 
         self._scan_running = True
@@ -637,8 +580,6 @@ class USBFlossMagicApp(ctk.CTk):
         self._scan_running = False
 
         if error is not None:
-            # Volume probablement retiré pendant le scan : la détection
-            # des volumes mettra l'affichage à jour.
             log.warning("Scan impossible sur %s : %s", volume, error)
         elif volume == self.current_volume and not self._busy:
             signature = tuple(sorted(str(p.relative_to(volume)) for p in junk))
@@ -649,9 +590,6 @@ class USBFlossMagicApp(ctk.CTk):
         if self._scan_pending:
             self._request_scan()
 
-    # ------------------------------------------------------------------
-    # État et affichage
-    # ------------------------------------------------------------------
     def _is_protected(self, path):
         return path.name in PROTECTED_NAMES
 
@@ -669,13 +607,12 @@ class USBFlossMagicApp(ctk.CTk):
             color = CYAN
         else:
             text = "> Aucun fichier"
-            color = TEXT_DIM   # gris discret
+            color = TEXT_DIM
 
         self.counter_label.configure(text=text, fg=color)
         self._refresh_visual()
 
     def _refresh_visual(self):
-        """Image du bouton et couleur de « Clean it » selon l'état."""
         if self._busy:
             state, color = "processing", RED_BRIGHT
         elif self.current_junk:
@@ -691,15 +628,10 @@ class USBFlossMagicApp(ctk.CTk):
             self.canvas.itemconfigure(self._btn_item, image=img)
         self.clean_it_label.configure(fg=color)
 
-    # ------------------------------------------------------------------
-    # Clic bouton central
-    # ------------------------------------------------------------------
     def _on_central_click(self):
         if self._busy or not self.current_junk or self.current_volume is None:
             return
 
-        # Capturé avant la boîte de dialogue : le volume courant peut
-        # changer pendant qu'elle est ouverte.
         volume = self.current_volume
         junk = list(self.current_junk)
 
@@ -724,7 +656,6 @@ class USBFlossMagicApp(ctk.CTk):
     def _on_clean_done(self, volume, ok, ko, error, eject_error):
         self._busy = False
 
-        # Resynchronise tout d'abord (volume éventuellement éjecté)
         self._last_volumes_state = None
         self._last_junk_signature = None
         try:
@@ -733,7 +664,6 @@ class USBFlossMagicApp(ctk.CTk):
             log.exception("Erreur pendant la détection des volumes")
         self._refresh_visual()
 
-        # Prépare la liste des popups à afficher (une seule à la fois)
         popups = []
 
         if error is not None:
@@ -762,12 +692,9 @@ class USBFlossMagicApp(ctk.CTk):
                 "icon": "warning",
             })
 
-        # Affiche les popups l'une après l'autre
         self._show_dialogs_sequentially(popups)
 
     def _show_dialogs_sequentially(self, popups):
-        """Affiche une liste de popups l'une après l'autre.
-        Chaque popup doit être fermée avant que la suivante apparaisse."""
         if not popups:
             return
 
@@ -775,11 +702,9 @@ class USBFlossMagicApp(ctk.CTk):
         rest = popups[1:]
 
         def on_close():
-            # Affiche la suivante après un court délai
             if rest:
                 self.after(100, lambda: self._show_dialogs_sequentially(rest))
 
-        # On passe un callback à _custom_dialog via le bouton OK
         self._custom_dialog(
             message=popup_data["message"],
             buttons=[("OK", on_close)],
@@ -787,10 +712,152 @@ class USBFlossMagicApp(ctk.CTk):
             icon=popup_data["icon"],
         )
 
-    # ------------------------------------------------------------------
-    # Éjection (appelée dans un thread) — retourne un message d'erreur
-    # ou None si tout s'est bien passé
-    # ------------------------------------------------------------------
+    def _open_help(self):
+        popup = ctk.CTkToplevel(self)
+        popup.title("Aide — USB-Floss Magic")
+        popup.resizable(False, False)
+        popup.transient(self)
+        popup.configure(fg_color=BG_MAIN)
+        popup.overrideredirect(True)
+        popup.bind("<Escape>", lambda e: popup.destroy())
+
+        outer = ctk.CTkFrame(
+            popup,
+            fg_color=BG_MAIN,
+            corner_radius=12,
+            border_color=BORDER_BLUE,
+            border_width=1,
+        )
+        outer.pack(fill="both", expand=True, padx=8, pady=8)
+
+        inner = ctk.CTkFrame(
+            outer,
+            fg_color=BG_MAIN,
+            corner_radius=10,
+            border_color=BORDER_BLUE,
+            border_width=1,
+        )
+        inner.pack(fill="both", expand=True, padx=8, pady=8)
+
+        content = ctk.CTkScrollableFrame(
+            inner,
+            fg_color=BG_MAIN,
+            scrollbar_button_color="#00A8B8",
+            scrollbar_button_hover_color=CYAN,
+            width=440,
+            height=420,
+        )
+        content.pack(fill="both", expand=True, padx=15, pady=(15, 10))
+
+        contenu = [
+            ("title", "USB-Floss Magic"),
+            ("space", ""),
+            ("text", "Nettoie une clé USB des fichiers inutiles"),
+            ("text", "créés par macOS, Windows ou Linux."),
+            ("space", ""),
+            ("title2", "Utilisation"),
+            ("bullet", "1. Branche une clé USB."),
+            ("bullet", "2. Elle apparaît automatiquement en bas à droite."),
+            ("bullet", "3. Le nombre de fichiers trouvés s'affiche."),
+            ("bullet", "4. Clique sur le rond central pour nettoyer."),
+            ("space", ""),
+            ("title2", "Éjecter la clé"),
+            ("text", "Coche « Nettoyer et Éjecter » pour que la clé"),
+            ("text", "soit éjectée automatiquement après le nettoyage."),
+            ("space", ""),
+            ("title2", "Fichiers ignorés"),
+            ("text", "Certains dossiers protégés par le système (comme"),
+            ("text", ".Spotlight-V100 et .Trashes) sont laissés en place."),
+            ("text", "Ils ne gênent pas et sont recréés automatiquement."),
+            ("space", ""),
+            ("title2", "Voir le détail"),
+            ("text", "Clique sur « X élément(s) trouvé(s) » pour voir"),
+            ("text", "la liste complète des fichiers détectés."),
+            ("space", ""),
+            ("sep", ""),
+            ("credit", "© 2026 — ritchy-lab"),
+            ("link", "github.com/ritchy-lab/USB-Floss-Magic"),
+        ]
+
+        for kind, txt in contenu:
+            if kind == "space":
+                tk.Label(content, text="", bg=BG_MAIN, height=1).pack()
+            elif kind == "title":
+                tk.Label(
+                    content, text=txt,
+                    font=(FONT_MAIN, 16, "normal"),
+                    fg=CYAN, bg=BG_MAIN, anchor="w",
+                ).pack(fill="x", pady=(4, 4))
+            elif kind == "title2":
+                tk.Label(
+                    content, text=txt,
+                    font=(FONT_MAIN, 13, "bold"),
+                    fg="#3DDFA0", bg=BG_MAIN, anchor="w",
+                ).pack(fill="x", pady=(10, 4))
+            elif kind == "bullet":
+                tk.Label(
+                    content, text=txt,
+                    font=(FONT_MAIN, 11),
+                    fg=TEXT_WHITE, bg=BG_MAIN, anchor="w", justify="left",
+                ).pack(fill="x")
+            elif kind == "credit":
+                tk.Label(
+                    content, text=txt,
+                    font=(FONT_MAIN, 10),
+                    fg=TEXT_GREY, bg=BG_MAIN, anchor="center",
+                ).pack(fill="x", pady=(4, 2))
+            elif kind == "link":
+                lbl = tk.Label(
+                    content, text=txt,
+                    font=(FONT_MONO, 9),
+                    fg="#7FE0E8", bg=BG_MAIN, anchor="center",
+                    cursor=CURSOR_HAND,
+                )
+                lbl.pack(fill="x")
+                lbl.bind("<Button-1>", lambda e: self._open_link("https://github.com/ritchy-lab/USB-Floss-Magic"))
+            elif kind == "sep":
+                tk.Frame(content, height=1, bg="#2A3A48").pack(fill="x", pady=8)
+            else:
+                tk.Label(
+                    content, text=txt,
+                    font=(FONT_MAIN, 11),
+                    fg=TEXT_WHITE, bg=BG_MAIN, anchor="w", justify="left",
+                ).pack(fill="x")
+
+        ctk.CTkButton(
+            inner,
+            text="Fermer",
+            font=(FONT_MAIN, 12, "normal"),
+            width=120,
+            height=32,
+            corner_radius=16,
+            fg_color="transparent",
+            border_color=CYAN_BRIGHT,
+            border_width=1,
+            text_color=TEXT_WHITE,
+            hover_color=CYAN_HOVER,
+            command=popup.destroy,
+        ).pack(pady=(0, 15))
+
+        popup.update_idletasks()
+        w = 500
+        h = 600
+        x = self.winfo_x() + (self.winfo_width() - w) // 2
+        y = self.winfo_y() + (self.winfo_height() - h) // 2
+        popup.geometry(f"{w}x{h}+{max(x, 0)}+{max(y, 0)}")
+
+        def _grab():
+            try:
+                popup.grab_set()
+                popup.focus_set()
+            except tk.TclError:
+                pass
+        popup.after(150, _grab)
+
+    def _open_link(self, url):
+        import webbrowser
+        webbrowser.open(url)
+
     def _eject_volume(self, volume_path):
         if sys.platform != "darwin":
             return "Éjection non prise en charge sur ce système."
@@ -811,7 +878,6 @@ class USBFlossMagicApp(ctk.CTk):
         return None
 
     def _translate_eject_error(self, raw):
-        """Traduit l'erreur diskutil en message compréhensible."""
         low = raw.lower()
 
         if "could not be unmounted" in low or "dissent" in low:
@@ -826,25 +892,12 @@ class USBFlossMagicApp(ctk.CTk):
         if "timeout" in low:
             return "La clé ne répond pas."
 
-        # Cas non reconnu : on affiche un message générique + un extrait
-        # du texte original (les 200 premiers caractères)
         excerpt = raw.strip()[:200]
         if excerpt:
             return f"Éjection impossible.\n\nDétail technique :\n{excerpt}"
         return "Éjection impossible (raison inconnue)."
 
-    # ------------------------------------------------------------------
-    # Fenêtre de dialogue stylée (remplace messagebox)
-    # ------------------------------------------------------------------
     def _custom_dialog(self, message, buttons, title=None, subtitle=None, icon=None):
-        """Affiche une fenêtre de dialogue modale stylée.
-
-        message   : str, texte principal (peut contenir des sauts de ligne)
-        buttons   : liste de tuples (label, action) — action = callable ou None
-        title     : str optionnel, titre affiché en haut
-        subtitle  : str optionnel, sous-titre plus petit
-        icon      : "success", "warning", "error" ou None
-        """
         popup = ctk.CTkToplevel(self)
         popup.title("USB-Floss")
         popup.resizable(False, False)
@@ -853,7 +906,6 @@ class USBFlossMagicApp(ctk.CTk):
         popup.overrideredirect(True)
         popup.bind("<Escape>", lambda e: popup.destroy())
 
-        # Cadre avec double liseré (cohérent avec la fenêtre principale)
         outer = ctk.CTkFrame(
             popup,
             fg_color=BG_MAIN,
@@ -872,24 +924,21 @@ class USBFlossMagicApp(ctk.CTk):
         )
         inner.pack(fill="both", expand=True, padx=8, pady=8)
 
-        # Icône d'état (si fournie et chargée)
         icon_key = f"popup_{icon}" if icon else None
         icon_img = self._images.get(icon_key) if icon_key else None
         if icon_img:
             lbl_icon = ctk.CTkLabel(inner, image=icon_img, text="")
             lbl_icon.pack(pady=(20, 5))
         else:
-            # Pas d'icône : on garde un peu d'espace en haut
             tk.Frame(inner, bg=BG_MAIN, height=15).pack()
 
-        # Titre (couleur selon l'icône)
         if title:
             if icon == "warning":
-                title_color = "#FFA500"   # orange
+                title_color = "#FFA500"
             elif icon == "error":
-                title_color = RED             # rouge
+                title_color = RED
             else:
-                title_color = CYAN            # cyan par défaut
+                title_color = CYAN
             tk.Label(
                 inner,
                 text=title,
@@ -900,7 +949,6 @@ class USBFlossMagicApp(ctk.CTk):
                 highlightthickness=0,
             ).pack(pady=(5, 5))
 
-        # Sous-titre
         if subtitle:
             tk.Label(
                 inner,
@@ -912,7 +960,6 @@ class USBFlossMagicApp(ctk.CTk):
                 highlightthickness=0,
             ).pack(pady=(0, 10))
 
-        # Message principal
         tk.Label(
             inner,
             text=message,
@@ -925,7 +972,6 @@ class USBFlossMagicApp(ctk.CTk):
             wraplength=420,
         ).pack(padx=20, pady=(10, 20))
 
-        # Boutons
         btn_frame = tk.Frame(inner, bg=BG_MAIN, bd=0, highlightthickness=0)
         btn_frame.pack(pady=(0, 20))
 
@@ -937,7 +983,6 @@ class USBFlossMagicApp(ctk.CTk):
             return handler
 
         for label, action in buttons:
-            # Style différent pour "Annuler" (plus discret)
             is_cancel = label.lower() in ("annuler", "non", "cancel")
             btn = ctk.CTkButton(
                 btn_frame,
@@ -955,7 +1000,6 @@ class USBFlossMagicApp(ctk.CTk):
             )
             btn.pack(side="left", padx=8)
 
-        # Centrage sur la fenêtre principale
         popup.update_idletasks()
         w = 500
         h = popup.winfo_reqheight()
@@ -963,7 +1007,6 @@ class USBFlossMagicApp(ctk.CTk):
         y = self.winfo_y() + (self.winfo_height() - h) // 2
         popup.geometry(f"{w}x{h}+{max(x, 0)}+{max(y, 0)}")
 
-        # grab_set avec délai (sinon échoue)
         def _grab():
             try:
                 popup.grab_set()
@@ -978,12 +1021,10 @@ class USBFlossMagicApp(ctk.CTk):
     # Fenêtre liste
     # ------------------------------------------------------------------
     def _on_counter_click(self, event):
-        # Rien à afficher → on ne fait rien
         if not self.current_junk:
             return
         self._open_list_popup()
 
-    
     def _open_list_popup(self):
         if not self.all_junk or self.current_volume is None:
             return
@@ -1012,7 +1053,6 @@ class USBFlossMagicApp(ctk.CTk):
             text_color=CYAN,
         ).pack(pady=(15, 10))
 
-        # Une seule zone de texte : beaucoup plus légère qu'un widget par fichier
         box = ctk.CTkTextbox(
             popup,
             fg_color="#0F161C",
@@ -1055,7 +1095,6 @@ class USBFlossMagicApp(ctk.CTk):
             command=popup.destroy,
         ).pack(pady=(0, 15))
 
-        # grab_set échoue si la fenêtre n'est pas encore affichée
         def _grab():
             try:
                 popup.grab_set()
