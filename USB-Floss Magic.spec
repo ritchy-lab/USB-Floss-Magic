@@ -25,11 +25,11 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,          # UPX n'est pas installé sur macOS (et déconseillé)
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch=None,
+    target_arch='universal2',   # Intel + Apple Silicon (le Python installe est universal2)
     codesign_identity=None,
     entitlements_file=None,
     icon=['icon.icns'],
@@ -39,7 +39,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='USB-Floss Magic',
 )
@@ -47,5 +47,11 @@ app = BUNDLE(
     coll,
     name='USB-Floss Magic.app',
     icon='icon.icns',
-    bundle_identifier=None,
+    bundle_identifier='com.ritchy-lab.usb-floss-magic',
+    version='0.6',
+    info_plist={
+        'CFBundleShortVersionString': '0.6',
+        'NSHumanReadableCopyright': '© 2026 ritchy-lab',
+        'LSMinimumSystemVersion': '11.0',
+    },
 )

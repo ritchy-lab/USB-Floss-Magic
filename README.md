@@ -7,6 +7,19 @@ Pensé pour les clés qui font des allers-retours entre un Mac et un PC : en un
 clic la clé redevient propre, et **ces fichiers se recréent tout seuls si le
 système en a besoin — aucune donnée n'est perdue**.
 
+## Téléchargement
+
+La version prête à l'emploi (application macOS) se trouve dans
+[**Releases**](https://github.com/ritchy-lab/USB-Floss-Magic/releases/latest) :
+télécharge le fichier `.zip`, décompresse-le, puis glisse l'application dans
+`Applications`.
+
+⚠️ L'application n'est pas signée par un certificat Apple payant, donc macOS
+affiche un avertissement au premier lancement. Pour l'ouvrir quand même :
+**clic droit sur l'application → Ouvrir**, puis confirme. Si macOS refuse
+toujours (macOS 15 et suivants) : **Réglages Système → Confidentialité et
+sécurité**, puis « Ouvrir quand même » en bas de la fenêtre.
+
 ## Ce que fait l'application
 
 - détecte automatiquement les clés USB et petits disques externes branchés

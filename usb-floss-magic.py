@@ -53,6 +53,7 @@ RED_BRIGHT = "#FF0000"
 TEXT_WHITE = "#FFFFFF"
 TEXT_GREY = "#8A9AA9"
 TEXT_DIM = "#5A6A78"
+LINK_COLOR = "#7FE0E8"
 
 BORDER_BLUE = "#5B8FB8"
 
@@ -170,6 +171,7 @@ HELP_CONTENT = [
     ("text", "la liste complète des fichiers détectés."),
     ("space", ""),
     ("sep", ""),
+    ("donate", "☕  Soutenir le projet"),
     ("credit", f"© 2026 — ritchy-lab — version {APP_VERSION}"),
     ("link", GITHUB_URL.replace("https://", "")),
 ]
@@ -328,6 +330,16 @@ class USBFlossMagicApp(ctk.CTk):
         self.canvas.tag_bind(tag, "<Leave>", leave)
         if on_click:
             self.canvas.tag_bind(tag, "<Button-1>", lambda e: on_click())
+
+    def _hover_link(self, widget):
+        """Éclaircit un lien au survol.
+
+        C'est le seul retour visuel fiable : l'option -cursor de Tk comme un
+        appel direct à AppKit (NSCursor.set) se font reprendre par le système
+        au mouvement de souris suivant.
+        """
+        widget.bind("<Enter>", lambda e: widget.configure(fg=TEXT_WHITE), add="+")
+        widget.bind("<Leave>", lambda e: widget.configure(fg=LINK_COLOR), add="+")
 
     def _load_photo(self, path, width):
         if not os.path.exists(path):
@@ -944,11 +956,23 @@ class USBFlossMagicApp(ctk.CTk):
                 lbl = tk.Label(
                     content, text=txt,
                     font=(FONT_MONO, 9),
-                    fg="#7FE0E8", bg=BG_MAIN, anchor="center",
+                    fg=LINK_COLOR, bg=BG_MAIN, anchor="center",
                     cursor=CURSOR_HAND,
                 )
                 lbl.pack(fill="x")
                 lbl.bind("<Button-1>", lambda e: self._open_link(GITHUB_URL))
+                self._hover_link(lbl)
+            elif kind == "donate":
+                # Comme le lien GitHub, mais ouvre la fenêtre de don.
+                lbl = tk.Label(
+                    content, text=txt,
+                    font=(FONT_MAIN, 12),
+                    fg=LINK_COLOR, bg=BG_MAIN, anchor="center",
+                    cursor=CURSOR_HAND,
+                )
+                lbl.pack(fill="x", pady=(0, 4))
+                lbl.bind("<Button-1>", lambda e: self._open_donate())
+                self._hover_link(lbl)
             elif kind == "sep":
                 tk.Frame(content, height=1, bg="#2A3A48").pack(fill="x", pady=8)
             else:
