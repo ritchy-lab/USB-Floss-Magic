@@ -65,6 +65,13 @@ En cas de souci avec la version `.app`, les messages d'erreur sont écrits dans
 python3 test_usbfloss.py
 ```
 
+## Soutenir le projet
+
+USB-Floss Magic est gratuit, sans publicité et sans traqueur. Si l'app t'a
+rendu service, tu peux m'offrir un café ☕ :
+
+[**ko-fi.com/ritchy_lab**](https://ko-fi.com/ritchy_lab)
+
 ## Licence
 
 MIT — © 2026 ritchy-lab

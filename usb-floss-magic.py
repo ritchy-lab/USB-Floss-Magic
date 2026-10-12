@@ -125,17 +125,17 @@ GITHUB_URL = "https://github.com/ritchy-lab/USB-Floss-Magic"
 # ------------------------------------------------------------------
 # Soutien / dons (fenêtre ouverte par la signature en bas à gauche)
 # ------------------------------------------------------------------
-# Colle ici le lien de ta page de don, ex. "https://ko-fi.com/ritchy-lab".
-# Tant que c'est vide, la fenêtre s'ouvre quand même mais sans bouton de don.
-DONATE_URL = ""
+# Lien de la page de don. Vide = la fenêtre s'ouvre sans bouton de don.
+DONATE_URL = "https://ko-fi.com/ritchy_lab"
 
-DONATE_TITLE = "Un café pour le nettoyeur ?"
+DONATE_TITLE = "le labo tourne au café,"
 DONATE_BUTTON = "Offrir un café ☕"
 DONATE_MESSAGE = (
-    "Ton .DS_Store ne te remerciera jamais. Moi, si.\n\n"
-    "USB-Floss Magic est gratuit, sans publicité, sans compte à créer, "
-    "et il ne t'espionne pas. Si l'app t'a rendu service, un petit café "
-    "finance les prochaines versions."
+    "J'ai passé des soirées à traquer les .DS_Store, les ._cache, et tous "
+    "ces fichiers fantômes que macOS laisse derrière lui. Ta clé USB ne te "
+    "remerciera jamais.\n\n"
+    "Moi, si.\n\n"
+    "☕ ko-fi.com/ritchy_lab"
 )
 
 HELP_CONTENT = [
