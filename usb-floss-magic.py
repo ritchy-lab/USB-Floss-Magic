@@ -10,6 +10,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 import webbrowser
 
@@ -109,7 +110,12 @@ VOLUME_CHECK_INTERVAL = 2000
 # Re-scan complet de la clé (junk apparu ou disparu tout seul).
 # Inutile d'être plus pressé : brancher une clé ou la nettoyer déclenche déjà
 # un scan immédiat, et parcourir une clé coûte cher en accès disque.
-RESCAN_INTERVAL = 15000
+# Re-scan : le délai s'adapte à la vitesse du dernier scan. Une petite clé est
+# relue toutes les 2 s (on voit tout de suite un fichier qu'on vient d'y copier),
+# une grosse clé beaucoup moins souvent, pour ne pas user le disque pour rien.
+RESCAN_INTERVAL = 15000        # délai maximal
+RESCAN_INTERVAL_MIN = 2000     # délai minimal
+RESCAN_FACTEUR = 25            # marge : 25 x la durée du dernier scan
 QUEUE_POLL_INTERVAL = 100
 EJECT_TIMEOUT = 30
 MAX_POPUP_ROWS = 2000
@@ -246,6 +252,9 @@ class USBFlossMagicApp(ctk.CTk):
         self._help_popup = None
         self._help_canvas = None
         self._list_popup = None
+        self._list_box = None
+        self._list_title = None
+        self._last_scan_duration = None
         self._help_scroll_acc = 0.0
         self.bind_all("<TouchpadScroll>", self._on_help_scroll, add="+")
 
@@ -624,12 +633,18 @@ class USBFlossMagicApp(ctk.CTk):
     def _tick_rescan(self):
         if self._closing:
             return
+        delai = RESCAN_INTERVAL
         try:
             self._request_scan()
+            duree = self._last_scan_duration
+            if duree is not None:
+                # Délai proportionnel au coût du dernier scan, encadré.
+                delai = int(min(RESCAN_INTERVAL, max(
+                    RESCAN_INTERVAL_MIN, duree * 1000 * RESCAN_FACTEUR)))
         except Exception:
             log.exception("Erreur pendant le rescan")
         finally:
-            self.after(RESCAN_INTERVAL, self._tick_rescan)
+            self.after(delai, self._tick_rescan)
 
     def _poll_results(self):
         if self._closing:
@@ -694,14 +709,18 @@ class USBFlossMagicApp(ctk.CTk):
         ).start()
 
     def _scan_worker(self, volume):
+        debut = time.perf_counter()
         try:
             junk = scan(volume)
-            self._results.put(("scan", volume, junk, None))
+            duree = time.perf_counter() - debut
+            self._results.put(("scan", volume, junk, None, duree))
         except Exception as e:
-            self._results.put(("scan", volume, None, e))
+            self._results.put(("scan", volume, None, e, time.perf_counter() - debut))
 
-    def _on_scan_done(self, volume, junk, error):
+    def _on_scan_done(self, volume, junk, error, duree=None):
         self._scan_running = False
+        if duree is not None:
+            self._last_scan_duration = duree
 
         if error is not None:
             log.warning("Scan impossible sur %s : %s", volume, error)
@@ -722,6 +741,7 @@ class USBFlossMagicApp(ctk.CTk):
         self.current_junk = [p for p in self.all_junk if not self._is_protected(p)]
         self.protected_junk = [p for p in self.all_junk if self._is_protected(p)]
         self._refresh_status()
+        self._fill_list_content()      # si la fenêtre de liste est ouverte
 
     def _refresh_status(self):
         n = len(self.current_junk)
@@ -1220,9 +1240,6 @@ class USBFlossMagicApp(ctk.CTk):
         if not self.all_junk or self.current_volume is None:
             return
 
-        items = list(self.all_junk)
-        volume = self.current_volume
-
         popup = ctk.CTkToplevel(self)
         self._list_popup = popup
         popup.title("Fichiers trouvés")
@@ -1238,12 +1255,13 @@ class USBFlossMagicApp(ctk.CTk):
         y = self.winfo_y() + (WIN_H - h) // 2
         popup.geometry(f"{w}x{h}+{max(x, 0)}+{max(y, 0)}")
 
-        ctk.CTkLabel(
+        self._list_title = ctk.CTkLabel(
             popup,
-            text=f"{len(items)} élément(s) trouvé(s)",
+            text="",
             font=(FONT_MAIN, 14, "normal"),
             text_color=CYAN,
-        ).pack(pady=(15, 10))
+        )
+        self._list_title.pack(pady=(15, 10))
 
         box = ctk.CTkTextbox(
             popup,
@@ -1257,26 +1275,8 @@ class USBFlossMagicApp(ctk.CTk):
         )
         box.pack(fill="both", expand=True, padx=20, pady=(0, 10))
         box.tag_config("ignored", foreground=TEXT_DIM)
-
-        # On construit tout le texte, puis un seul insert : beaucoup plus
-        # rapide qu'une insertion ligne par ligne sur des milliers d'entrées.
-        lines = []
-        ignored_lines = []
-        for path in items[:MAX_POPUP_ROWS]:
-            rel = str(path.relative_to(volume))
-            if self._is_protected(path):
-                lines.append(f"{rel}    (ignoré)")
-                ignored_lines.append(len(lines))
-            else:
-                lines.append(rel)
-        if len(items) > MAX_POPUP_ROWS:
-            lines.append(f"… et {len(items) - MAX_POPUP_ROWS} autre(s)")
-            ignored_lines.append(len(lines))
-
-        box.insert("end", "\n".join(lines) + "\n")
-        for num in ignored_lines:
-            box.tag_add("ignored", f"{num}.0", f"{num}.end")
-        box.configure(state="disabled")
+        self._list_box = box
+        self._fill_list_content()
 
         ctk.CTkButton(
             popup,
@@ -1301,6 +1301,46 @@ class USBFlossMagicApp(ctk.CTk):
                 pass
 
         popup.after(150, _grab)
+
+    def _fill_list_content(self):
+        """(Re)remplit la fenêtre de liste — rappelée à chaque changement."""
+        box = getattr(self, "_list_box", None)
+        if box is None or not box.winfo_exists():
+            self._list_box = None
+            return
+
+        items = list(self.all_junk)
+        volume = self.current_volume
+        titre = getattr(self, "_list_title", None)
+        if titre is not None and titre.winfo_exists():
+            titre.configure(text=f"{len(items)} élément(s) trouvé(s)")
+
+        position = box.yview()[0]          # on garde la position de lecture
+
+        # Tout le texte en un seul insert : beaucoup plus rapide qu'une
+        # insertion ligne par ligne sur des milliers d'entrées.
+        lines = []
+        ignored_lines = []
+        for path in items[:MAX_POPUP_ROWS]:
+            rel = (str(path.relative_to(volume))
+                   if volume and path.is_relative_to(volume) else str(path))
+            if self._is_protected(path):
+                lines.append(f"{rel}    (ignoré)")
+                ignored_lines.append(len(lines))
+            else:
+                lines.append(rel)
+        if len(items) > MAX_POPUP_ROWS:
+            lines.append(f"… et {len(items) - MAX_POPUP_ROWS} autre(s)")
+            ignored_lines.append(len(lines))
+
+        box.configure(state="normal")
+        box.delete("1.0", "end")
+        if lines:
+            box.insert("end", "\n".join(lines) + "\n")
+        for num in ignored_lines:
+            box.tag_add("ignored", f"{num}.0", f"{num}.end")
+        box.configure(state="disabled")
+        box.yview_moveto(position)
 
 
 def _setup_logging():
