@@ -10,5 +10,7 @@ __pycache__/
 build/
 dist/
 *.spec
+# ...sauf la recette de build, qu'on veut garder dans le dépôt
+!USB-Floss Magic.spec
 # Icône macOS (généré)
 icon.iconset/

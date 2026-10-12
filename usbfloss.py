@@ -2,11 +2,12 @@
 """
 USBFloss — Nettoyer les fichiers macOS inutiles sur une clé USB.
 
-Version 0.3 : mode interactif, filtre des volumes Time Machine
+Version 0.6 : mode interactif, filtre des volumes Time Machine
 et limite de taille pour ne proposer que les petites clés USB.
 """
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -54,28 +55,78 @@ EXCLUDED_NAMES = {
 }
 
 
-def is_junk(path: Path) -> bool:
-    """Renvoie True si le chemin correspond à un fichier parasite macOS."""
-    name = path.name
+def _is_junk_name(name: str, is_dir: bool) -> bool:
+    """Test interne : le nom et le type suffisent, sans toucher au disque."""
     if name in JUNK_FILES:
         return True
-    if path.is_dir() and name in JUNK_DIRS:
+    if is_dir and name in JUNK_DIRS:
         return True
-    if name.startswith(JUNK_PREFIXES):
-        return True
-    return False
+    return name.startswith(JUNK_PREFIXES)
+
+
+def is_junk(path: Path) -> bool:
+    """Renvoie True si le chemin correspond à un fichier parasite macOS."""
+    return _is_junk_name(path.name, path.is_dir())
 
 
 def scan(root: Path) -> list[Path]:
-    """Parcourt récursivement `root` et renvoie la liste des fichiers parasites."""
-    return [p for p in root.rglob("*") if is_junk(p)]
+    """Parcourt récursivement `root` et renvoie la liste des fichiers parasites.
+
+    On utilise os.walk plutôt que Path.rglob, pour deux raisons :
+      - on ne fabrique un objet Path que pour les candidats (rglob en crée un
+        pour chaque fichier du disque, ce qui est lent sur une grosse clé) ;
+      - on refuse de descendre dans les dossiers protégés (.Spotlight-V100,
+        .Trashes...), qui ne contiennent rien à nettoyer. Ces dossiers sont
+        quand même signalés, pour que l'interface les affiche « ignorés ».
+    """
+    junk: list[Path] = []
+
+    for dirpath, dirnames, filenames in os.walk(root):
+        base = Path(dirpath)
+
+        for name in dirnames:
+            if _is_junk_name(name, True):
+                junk.append(base / name)
+
+        # On retire les dossiers protégés du parcours : on n'y entre jamais.
+        dirnames[:] = [d for d in dirnames if d not in JUNK_DIRS]
+
+        for name in filenames:
+            if _is_junk_name(name, False):
+                junk.append(base / name)
+
+    return junk
+
+
+def is_dangerous_root(root: Path) -> bool:
+    """True si la racine est trop large pour un nettoyage de clé USB.
+
+    Refuse le disque entier ("/" ou "C:\\") et le dossier personnel, ainsi
+    que n'importe quel dossier qui le contient (comme "/Users").
+    """
+    return root == Path(root.anchor) or Path.home().is_relative_to(root)
 
 
 def delete(paths: list[Path], root: Path) -> tuple[int, int]:
     """Supprime les chemins donnés. Renvoie (succès, échecs)."""
+    if is_dangerous_root(root):
+        print(f"  Nettoyage impossible ici : {root}")
+        return 0, len(paths)
+
     ok = 0
     ko = 0
     for path in paths:
+        # Un fichier ne se supprime que s'il est DANS la racine, et jamais
+        # la racine elle-même (sinon rmtree effacerait tout son contenu).
+        if path == root:
+            print(f"  IGNORÉ   : {path} (c'est la racine elle-même)")
+            ko += 1
+            continue
+        if not path.is_relative_to(root):
+            print(f"  IGNORÉ   : {path} (hors de {root})")
+            ko += 1
+            continue
+
         rel = path.relative_to(root)
         try:
             if path.is_dir():
@@ -108,8 +159,7 @@ def is_time_machine(volume: Path) -> bool:
 def volume_size_gb(volume: Path) -> float | None:
     """Renvoie la taille totale du volume en Go, ou None si indisponible."""
     try:
-        import shutil as _shutil
-        total, _used, _free = _shutil.disk_usage(volume)
+        total, _used, _free = shutil.disk_usage(volume)
         return total / (1024 ** 3)
     except OSError:
         return None
@@ -120,8 +170,6 @@ def list_volumes() -> list[tuple[Path, float]]:
 
     Exclut : disques système, Time Machine, volumes > MAX_VOLUME_SIZE_GB.
     """
-    import os
-
     if not VOLUMES_DIR.is_dir():
         return []
 
@@ -222,6 +270,10 @@ def main():
 
     if not root.is_dir():
         print(f"Erreur : {root} n'est pas un dossier valide.")
+        sys.exit(1)
+
+    if is_dangerous_root(root):
+        print(f"Erreur : {root} est trop large. Indique le dossier d'une clé USB.")
         sys.exit(1)
 
     print()

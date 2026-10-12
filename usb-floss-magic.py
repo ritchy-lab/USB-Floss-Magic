@@ -16,7 +16,14 @@ import webbrowser
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageTk
 
-from usbfloss import list_volumes, format_size, scan, delete
+from usbfloss import (
+    JUNK_DIRS,
+    MAX_VOLUME_SIZE_GB,
+    delete,
+    format_size,
+    list_volumes,
+    scan,
+)
 
 log = logging.getLogger("usbfloss.gui")
 
@@ -91,20 +98,25 @@ POPUP_ERROR_PATH = _res("popup_error.png")
 BTN_SIZE = 340
 BTN_INNER_RADIUS = 90
 
+# Icône affichée à droite du titre dans la fenêtre d'aide :
+# sa taille, puis l'espace autour d'elle (à gauche, à droite).
+HELP_ICON_SIZE = 55
+HELP_ICON_PADX = (10, 40)
+
 VOLUME_CHECK_INTERVAL = 2000
-RESCAN_INTERVAL = 5000
+# Re-scan complet de la clé (junk apparu ou disparu tout seul).
+# Inutile d'être plus pressé : brancher une clé ou la nettoyer déclenche déjà
+# un scan immédiat, et parcourir une clé coûte cher en accès disque.
+RESCAN_INTERVAL = 15000
 QUEUE_POLL_INTERVAL = 100
 EJECT_TIMEOUT = 30
 MAX_POPUP_ROWS = 2000
 
-PROTECTED_NAMES = {
-    ".Spotlight-V100",
-    ".Trashes",
-    ".fseventsd",
-    ".DocumentRevisions-V100",
-}
+# Dossiers gérés par macOS : signalés dans la liste, jamais supprimés.
+# La liste vient du cœur (usbfloss.JUNK_DIRS) pour ne pas la recopier.
+PROTECTED_NAMES = set(JUNK_DIRS)
 
-APP_VERSION = "0.5-magic"
+APP_VERSION = "0.6"
 
 
 GITHUB_URL = "https://github.com/ritchy-lab/USB-Floss-Magic"
@@ -132,7 +144,7 @@ HELP_CONTENT = [
     ("space", ""),
     ("title2", "Limite de taille"),
     ("text", "Seules les clés USB et disques externes de moins"),
-    ("text", "de 256 Go sont proposés automatiquement dans la liste."),
+    ("text", f"de {MAX_VOLUME_SIZE_GB} Go sont proposés automatiquement."),
     ("text", "Au-delà, la clé n'apparaît pas : utilisez la ligne"),
     ("text", "de commande usbfloss.py en mode direct si besoin."),
     ("space", ""),
@@ -141,7 +153,7 @@ HELP_CONTENT = [
     ("text", "la liste complète des fichiers détectés."),
     ("space", ""),
     ("sep", ""),
-    ("credit", "© 2026 — ritchy-lab"),
+    ("credit", f"© 2026 — ritchy-lab — version {APP_VERSION}"),
     ("link", GITHUB_URL.replace("https://", "")),
 ]
 
@@ -185,7 +197,7 @@ class USBFlossMagicApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("USB-Floss")
+        self.title(f"USB-Floss Magic {APP_VERSION}")
         self.geometry(f"{WIN_W}x{WIN_H}")
         self.resizable(False, False)
         self.configure(fg_color=BG_MAIN)
@@ -214,6 +226,7 @@ class USBFlossMagicApp(ctk.CTk):
         self._closing = False
         self._help_popup = None
         self._help_canvas = None
+        self._list_popup = None
         self._help_scroll_acc = 0.0
         self.bind_all("<TouchpadScroll>", self._on_help_scroll, add="+")
 
@@ -243,6 +256,18 @@ class USBFlossMagicApp(ctk.CTk):
     def destroy(self):
         self._closing = True
 
+        # 1) Fermer d'abord les fenêtres secondaires (aide, liste, dialogues).
+        #    Sinon l'annulation globale des "after" ci-dessous supprime des
+        #    commandes Tcl qui leur appartiennent, et leur destruction en
+        #    cascade échoue alors avec : "can't delete Tcl command".
+        for child in list(self.winfo_children()):
+            if isinstance(child, tk.Toplevel):
+                try:
+                    child.destroy()
+                except Exception:
+                    pass
+
+        # 2) Annuler les callbacks en attente (polling, rescan, popups).
         for after_id in self.tk.call('after', 'info'):
             try:
                 self.after_cancel(after_id)
@@ -343,6 +368,9 @@ class USBFlossMagicApp(ctk.CTk):
         self._images["popup_success"] = load_ctk(POPUP_SUCCESS_PATH, (64, 64))
         self._images["popup_warning"] = load_ctk(POPUP_WARNING_PATH, (64, 64))
         self._images["popup_error"] = load_ctk(POPUP_ERROR_PATH, (64, 64))
+        self._images["help_icon"] = load_ctk(
+            POPUP_SUCCESS_PATH, (HELP_ICON_SIZE, HELP_ICON_SIZE)
+        )
 
         self._images["bg"] = self._make_background()
         self._images["logo"] = self._load_photo(LOGO_PATH, WIN_W - LOGO_WIDTH_OFFSET)
@@ -537,6 +565,8 @@ class USBFlossMagicApp(ctk.CTk):
         self.current_volume = vol_path
         self.vol_name.configure(text=vol_path.name)
         self._last_junk_signature = None
+        # Ne jamais garder la liste de la clé précédente à l'écran.
+        self._set_junk([])
         self._request_scan()
 
     def _tick_volumes(self):
@@ -599,6 +629,9 @@ class USBFlossMagicApp(ctk.CTk):
 
         if self.current_volume not in paths:
             self.current_volume = paths[0]
+            # La clé a changé : on efface tout de suite la liste précédente.
+            self._last_junk_signature = None
+            self._set_junk([])
 
         self.vol_name.configure(text=self.current_volume.name)
         self._request_scan()
@@ -707,10 +740,14 @@ class USBFlossMagicApp(ctk.CTk):
 
         self._last_volumes_state = None
         self._last_junk_signature = None
+        # Les fichiers listés viennent d'être traités : on vide tout de suite
+        # le compteur pour ne pas laisser un bouton rouge mensonger.
+        self._set_junk([])
         try:
             self._check_volumes()
         except Exception:
             log.exception("Erreur pendant la détection des volumes")
+        self._request_scan()
         self._refresh_visual()
 
         popups = []
@@ -765,15 +802,19 @@ class USBFlossMagicApp(ctk.CTk):
         pop = self._help_popup
         cv = self._help_canvas
         if pop is None or cv is None or not pop.winfo_exists():
-           return
+            return
         # Seulement quand le pointeur est sur la fenêtre d'aide
         if not str(event.widget).startswith(str(pop)):
-           return
+            return
         try:
             dx, dy = (int(str(v)) for v in self.tk.splitlist(
                 self.tk.call("tk::PreciseScrollDeltas", event.delta)))
         except Exception:
-            return
+            # Repli si cette commande interne à Tk n'existe pas (Tk 8.6)
+            try:
+                dy = int(event.delta)
+            except (TypeError, ValueError):
+                return
         if dy == 0:
             return
         # On cumule les petits gestes : le canvas avance par pas de plusieurs pixels
@@ -834,11 +875,23 @@ class USBFlossMagicApp(ctk.CTk):
             if kind == "space":
                 tk.Label(content, text="", bg=BG_MAIN, height=1).pack()
             elif kind == "title":
+                # Titre à gauche, icône à droite, sur la même ligne.
+                row = tk.Frame(content, bg=BG_MAIN)
+                row.pack(fill="x", pady=(4, 4))
                 tk.Label(
-                    content, text=txt,
+                    row, text=txt,
                     font=(FONT_MAIN, 16, "normal"),
                     fg=CYAN, bg=BG_MAIN, anchor="w",
-                ).pack(fill="x", pady=(4, 4))
+                ).pack(side="left")
+                icon_img = self._images.get("help_icon")
+                if icon_img is not None:
+                    # CTkLabel obligatoire : un tk.Label ne sait pas afficher
+                    # un CTkImage (TclError "image ... doesn't exist").
+                    # fg_color=BG_MAIN : le fond de l'icône est transparent.
+                    ctk.CTkLabel(
+                        row, image=icon_img, text="",
+                        fg_color=BG_MAIN, bg_color=BG_MAIN,
+                    ).pack(side="right", padx=HELP_ICON_PADX)
             elif kind == "title2":
                 tk.Label(
                     content, text=txt,
@@ -1080,6 +1133,12 @@ class USBFlossMagicApp(ctk.CTk):
         self._open_list_popup()
 
     def _open_list_popup(self):
+        # Une seule fenêtre de liste à la fois (comme pour l'aide).
+        if self._list_popup is not None and self._list_popup.winfo_exists():
+            self._list_popup.lift()
+            self._list_popup.focus_force()
+            return
+
         if not self.all_junk or self.current_volume is None:
             return
 
@@ -1087,6 +1146,7 @@ class USBFlossMagicApp(ctk.CTk):
         volume = self.current_volume
 
         popup = ctk.CTkToplevel(self)
+        self._list_popup = popup
         popup.title("Fichiers trouvés")
         popup.resizable(False, False)
         popup.transient(self)
@@ -1120,18 +1180,24 @@ class USBFlossMagicApp(ctk.CTk):
         box.pack(fill="both", expand=True, padx=20, pady=(0, 10))
         box.tag_config("ignored", foreground=TEXT_DIM)
 
+        # On construit tout le texte, puis un seul insert : beaucoup plus
+        # rapide qu'une insertion ligne par ligne sur des milliers d'entrées.
+        lines = []
+        ignored_lines = []
         for path in items[:MAX_POPUP_ROWS]:
             rel = str(path.relative_to(volume))
             if self._is_protected(path):
-                box.insert("end", f"{rel}    (ignoré)\n", "ignored")
+                lines.append(f"{rel}    (ignoré)")
+                ignored_lines.append(len(lines))
             else:
-                box.insert("end", f"{rel}\n")
+                lines.append(rel)
         if len(items) > MAX_POPUP_ROWS:
-            box.insert(
-                "end",
-                f"… et {len(items) - MAX_POPUP_ROWS} autre(s)\n",
-                "ignored",
-            )
+            lines.append(f"… et {len(items) - MAX_POPUP_ROWS} autre(s)")
+            ignored_lines.append(len(lines))
+
+        box.insert("end", "\n".join(lines) + "\n")
+        for num in ignored_lines:
+            box.tag_add("ignored", f"{num}.0", f"{num}.end")
         box.configure(state="disabled")
 
         ctk.CTkButton(
@@ -1159,7 +1225,25 @@ class USBFlossMagicApp(ctk.CTk):
         popup.after(150, _grab)
 
 
+def _setup_logging():
+    """En développement : logs sur la console. Dans l'app .app : dans un fichier."""
+    if not getattr(sys, "frozen", False):
+        logging.basicConfig(level=logging.INFO)
+        return
+
+    log_dir = os.path.join(os.path.expanduser("~"), "Library", "Logs")
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        handler = logging.FileHandler(
+            os.path.join(log_dir, "USB-Floss Magic.log"),
+            mode="w", encoding="utf-8",
+        )
+    except OSError:
+        return
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
+
+
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    _setup_logging()
     app = USBFlossMagicApp()
     app.mainloop()
