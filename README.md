@@ -7,6 +7,8 @@ Pensé pour les clés qui font des allers-retours entre un Mac et un PC : en un
 clic la clé redevient propre, et **ces fichiers se recréent tout seuls si le
 système en a besoin — aucune donnée n'est perdue**.
 
+![USB-Floss Magic : quatre fichiers parasites détectés sur la clé DRIVE64](screenshot.png)
+
 ## Téléchargement
 
 La version prête à l'emploi (application macOS pour **Apple Silicon**,
