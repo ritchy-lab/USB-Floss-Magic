@@ -64,7 +64,23 @@ python3 usbfloss.py /Volumes/MA_CLE --delete --yes   # supprime sans confirmatio
 ## Construire l'application macOS (.app)
 
 ```bash
-pyinstaller "USB-Floss Magic.spec"
+./build.sh
+```
+
+Le script compile, retire les attributs `com.apple.FinderInfo` que le Finder
+pose sur le paquet, signe en ad-hoc, vérifie la signature, puis fabrique le zip
+de publication. Sans ce nettoyage et cette signature, le paquet part avec une
+signature incomplète — et macOS affiche alors une icône de secours à la place de
+la vraie.
+
+Équivalent manuel :
+
+```bash
+pyinstaller --noconfirm --clean "USB-Floss Magic.spec"
+xattr -cr "dist/USB-Floss Magic.app"
+codesign --force --deep --sign - "dist/USB-Floss Magic.app"
+ditto -c -k --norsrc --noextattr --noacl --keepParent \
+  "dist/USB-Floss Magic.app" "dist/USB-Floss-Magic-0.6-macOS-arm64.zip"
 ```
 
 Le résultat est dans `dist/USB-Floss Magic.app`. Les images (`background.png`,
@@ -75,6 +91,13 @@ Le résultat est dans `dist/USB-Floss Magic.app`. Les images (`background.png`,
 > binaire universel sur PyPI. Le spec compile donc pour l'architecture de la
 > machine. Pour un Mac Intel, il faut un environnement Python x86_64 (sous
 > Rosetta) et y relancer la construction.
+
+> **Note sur l'icône et macOS 26** : macOS 26 (Tahoe) redessine automatiquement
+> les icônes des applications qui ne suivent pas son nouveau gabarit
+> « squircle » — il place sa propre forme derrière l'icône, ce qui donne
+> l'impression qu'elle n'est plus détourée. Pour obtenir l'icône moderne, il
+> faut fournir un fichier *Icon Composer* (`.icon`) créé avec Xcode 26. Sur les
+> versions antérieures à macOS 26, l'icône ronde s'affiche telle quelle.
 
 En cas de souci avec la version `.app`, les messages d'erreur sont écrits dans
 `~/Library/Logs/USB-Floss Magic.log`.
