@@ -94,10 +94,11 @@ Le résultat est dans `dist/USB-Floss Magic.app`. Les images (`background.png`,
 
 > **Note sur l'icône et macOS 26** : macOS 26 (Tahoe) redessine automatiquement
 > les icônes des applications qui ne suivent pas son nouveau gabarit
-> « squircle » — il place sa propre forme derrière l'icône, ce qui donne
-> l'impression qu'elle n'est plus détourée. Pour obtenir l'icône moderne, il
-> faut fournir un fichier *Icon Composer* (`.icon`) créé avec Xcode 26. Sur les
-> versions antérieures à macOS 26, l'icône ronde s'affiche telle quelle.
+> « squircle ». Le dossier `AppIcon.icon` (format *Icon Composer*, Xcode 26) est
+> donc fourni : `build.sh` le compile en `Assets.car` et l'installe dans le
+> paquet. macOS 26 utilise cette icône ; macOS 11 à 15 continuent d'utiliser
+> `icon.icns`. Pour modifier l'icône, ouvre `AppIcon.icon` dans Icon Composer,
+> puis relance `./build.sh`.
 
 En cas de souci avec la version `.app`, les messages d'erreur sont écrits dans
 `~/Library/Logs/USB-Floss Magic.log`.
