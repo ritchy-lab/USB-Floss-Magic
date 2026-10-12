@@ -92,13 +92,12 @@ Le résultat est dans `dist/USB-Floss Magic.app`. Les images (`background.png`,
 > machine. Pour un Mac Intel, il faut un environnement Python x86_64 (sous
 > Rosetta) et y relancer la construction.
 
-> **Note sur l'icône et macOS 26** : macOS 26 (Tahoe) redessine automatiquement
-> les icônes des applications qui ne suivent pas son nouveau gabarit
-> « squircle ». Le dossier `AppIcon.icon` (format *Icon Composer*, Xcode 26) est
-> donc fourni : `build.sh` le compile en `Assets.car` et l'installe dans le
-> paquet. macOS 26 utilise cette icône ; macOS 11 à 15 continuent d'utiliser
-> `icon.icns`. Pour modifier l'icône, ouvre `AppIcon.icon` dans Icon Composer,
-> puis relance `./build.sh`.
+> **Note sur l'icône et macOS 26** : macOS 26 (Tahoe) peut redessiner les icônes
+> des applications qui ne suivent pas son nouveau gabarit « squircle ». Le projet
+> utilise volontairement son icône ronde détourée (`icon.icns` + `icon.png`) :
+> elle couvre toutes les tailles de 16 à 512 px avec des coins transparents. Pour
+> adopter l'icône « Liquid Glass » de macOS 26, il faudrait fournir un fichier
+> *Icon Composer* (`.icon`) compilé avec Xcode 26.
 
 En cas de souci avec la version `.app`, les messages d'erreur sont écrits dans
 `~/Library/Logs/USB-Floss Magic.log`.
