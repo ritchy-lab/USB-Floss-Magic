@@ -76,7 +76,8 @@ CURSOR_HAND = "pointinghand" if sys.platform == "darwin" else "hand2"
 
 BOTTOM_LINE_1_OFFSET = 85
 BOTTOM_LINE_2_OFFSET = 50
-HELP_LINE_OFFSET = 45
+HELP_LINE_OFFSET = 469
+SIGNATURE_OFFSET = 28
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -120,6 +121,22 @@ APP_VERSION = "0.6"
 
 
 GITHUB_URL = "https://github.com/ritchy-lab/USB-Floss-Magic"
+
+# ------------------------------------------------------------------
+# Soutien / dons (fenêtre ouverte par la signature en bas à gauche)
+# ------------------------------------------------------------------
+# Colle ici le lien de ta page de don, ex. "https://ko-fi.com/ritchy-lab".
+# Tant que c'est vide, la fenêtre s'ouvre quand même mais sans bouton de don.
+DONATE_URL = ""
+
+DONATE_TITLE = "Un café pour le nettoyeur ?"
+DONATE_BUTTON = "Offrir un café ☕"
+DONATE_MESSAGE = (
+    "Ton .DS_Store ne te remerciera jamais. Moi, si.\n\n"
+    "USB-Floss Magic est gratuit, sans publicité, sans compte à créer, "
+    "et il ne t'espionne pas. Si l'app t'a rendu service, un petit café "
+    "finance les prochaines versions."
+)
 
 HELP_CONTENT = [
     ("title", "USB-Floss Magic"),
@@ -395,7 +412,7 @@ class USBFlossMagicApp(ctk.CTk):
     def _build_quit_button(self):
         self.quit_btn = _CanvasLabel(
             self.canvas,
-            INNER_X0 + INNER_W - 10,
+            INNER_X0 + INNER_W - 20,
             INNER_Y0 + 118,
             "✗",
             (FONT_MAIN, 14),
@@ -413,7 +430,7 @@ class USBFlossMagicApp(ctk.CTk):
     def _build_central_button(self):
         photo = self._btn_photos.get("idle")
         cx = WIN_W // 2
-        cy = INNER_Y0 + INNER_H // 2 + 30
+        cy = INNER_Y0 + INNER_H // 2 + 20
         self._btn_item = self.canvas.create_image(
             cx,
             cy,
@@ -434,12 +451,12 @@ class USBFlossMagicApp(ctk.CTk):
     def _build_clean_it_label(self):
         self.clean_it_label = _CanvasLabel(
             self.canvas,
-            INNER_X0 + 30,
-            INNER_Y0 + 140,
+            WIN_W // 2,
+            INNER_Y0 + 130,
             "Clean it",
             (FONT_MAIN, 14, "normal"),
             CYAN,
-            anchor="w",
+            anchor="center",
             tags=("clean_it",),
             shadow=True,
         )
@@ -507,14 +524,27 @@ class USBFlossMagicApp(ctk.CTk):
         y3 = INNER_Y0 + WIN_H - 2 * BORDER_MARGIN - 6 - HELP_LINE_OFFSET
 
         self.help_btn = _CanvasLabel(
-            self.canvas, left, y3, "?",
-            (FONT_MAIN, 12, "bold"), TEXT_DIM, anchor="w", tags=("help",),
+            self.canvas, 40, y3, "?",
+            (FONT_MAIN, 14, "bold"), TEXT_GREY, anchor="w", tags=("help",),
         )
         self._bind_tag(
             "help",
             on_click=self._open_help,
             on_enter=lambda e: self.help_btn.configure(fg=CYAN),
-            on_leave=lambda e: self.help_btn.configure(fg=TEXT_DIM),
+            on_leave=lambda e: self.help_btn.configure(fg=TEXT_GREY),
+        )
+
+        y4 = INNER_Y0 + WIN_H - 2 * BORDER_MARGIN - 6 - SIGNATURE_OFFSET
+
+        self.signature = _CanvasLabel(
+            self.canvas, left, y4, "ritchy-lab",
+            (FONT_MAIN, 9), TEXT_DIM, anchor="w", tags=("signature",),
+        )
+        self._bind_tag(
+            "signature",
+            on_click=self._open_donate,
+            on_enter=lambda e: self.signature.configure(fg=CYAN),
+            on_leave=lambda e: self.signature.configure(fg=TEXT_DIM),
         )
 
     def _layout_volume_line(self):
@@ -965,6 +995,26 @@ class USBFlossMagicApp(ctk.CTk):
     def _open_link(self, url):
         webbrowser.open(url)
 
+    def _open_donate(self):
+        """Fenêtre « offre-moi un café », ouverte par la signature."""
+        if DONATE_URL:
+            buttons = [
+                (DONATE_BUTTON, lambda: self._open_link(DONATE_URL)),
+                ("Plus tard", None),
+            ]
+            message = DONATE_MESSAGE
+        else:
+            # Lien pas encore renseigné : on n'affiche rien de cassé.
+            buttons = [("Fermer", None)]
+            message = DONATE_MESSAGE + "\n\n(Le lien de don arrive très bientôt !)"
+
+        self._custom_dialog(
+            message=message,
+            buttons=buttons,
+            title=DONATE_TITLE,
+            icon="success",
+        )
+
     def _eject_volume(self, volume_path):
         if sys.platform != "darwin":
             return "Éjection non prise en charge sur ce système."
@@ -1090,7 +1140,11 @@ class USBFlossMagicApp(ctk.CTk):
             return handler
 
         for label, action in buttons:
-            is_cancel = label.lower() in ("annuler", "non", "cancel")
+            # Boutons « secondaires » (contour gris). « Fermer » n'en est pas
+            # un : tout seul dans une fenêtre, c'est l'action principale.
+            is_cancel = label.lower() in (
+                "annuler", "non", "cancel", "plus tard",
+            )
             btn = ctk.CTkButton(
                 btn_frame,
                 text=label,
