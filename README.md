@@ -9,7 +9,8 @@ système en a besoin — aucune donnée n'est perdue**.
 
 ## Téléchargement
 
-La version prête à l'emploi (application macOS) se trouve dans
+La version prête à l'emploi (application macOS pour **Apple Silicon**,
+M1 et suivants) se trouve dans
 [**Releases**](https://github.com/ritchy-lab/USB-Floss-Magic/releases/latest) :
 télécharge le fichier `.zip`, décompresse-le, puis glisse l'application dans
 `Applications`.
@@ -68,6 +69,12 @@ pyinstaller "USB-Floss Magic.spec"
 
 Le résultat est dans `dist/USB-Floss Magic.app`. Les images (`background.png`,
 `logo.png`, `button_*.png`, `popup_*.png`) doivent rester à côté du script.
+
+> **Note sur l'architecture** : la construction en version *universelle*
+> (Intel + Apple Silicon) est bloquée par Pillow, qui n'est pas distribué en
+> binaire universel sur PyPI. Le spec compile donc pour l'architecture de la
+> machine. Pour un Mac Intel, il faut un environnement Python x86_64 (sous
+> Rosetta) et y relancer la construction.
 
 En cas de souci avec la version `.app`, les messages d'erreur sont écrits dans
 `~/Library/Logs/USB-Floss Magic.log`.

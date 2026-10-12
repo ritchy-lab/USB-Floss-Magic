@@ -29,7 +29,10 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch='universal2',   # Intel + Apple Silicon (le Python installe est universal2)
+    # None = architecture de la machine. La version universelle (Intel +
+    # Apple Silicon) est impossible : Pillow n'existe pas en binaire
+    # universel sur PyPI (ses 26 binaires sont mono-architecture).
+    target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
     icon=['icon.icns'],
