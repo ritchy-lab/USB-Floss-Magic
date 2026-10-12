@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
+import webbrowser
 
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageTk
@@ -40,7 +41,7 @@ BG_MAIN = "#000000"
 CYAN = "#00F0FF"
 CYAN_BRIGHT = "#3BFCFF"
 CYAN_HOVER = "#23A7C8"
-RED = "#B51A1A"
+RED = "#D22D2D"
 RED_BRIGHT = "#FF0000"
 TEXT_WHITE = "#FFFFFF"
 TEXT_GREY = "#8A9AA9"
@@ -67,8 +68,8 @@ VOL_BRACKET_GAP = 10
 CURSOR_HAND = "pointinghand" if sys.platform == "darwin" else "hand2"
 
 BOTTOM_LINE_1_OFFSET = 85
-BOTTOM_LINE_2_OFFSET = 55
-HELP_LINE_OFFSET = 35
+BOTTOM_LINE_2_OFFSET = 50
+HELP_LINE_OFFSET = 45
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -106,15 +107,56 @@ PROTECTED_NAMES = {
 APP_VERSION = "0.5-magic"
 
 
+GITHUB_URL = "https://github.com/ritchy-lab/USB-Floss-Magic"
+
+HELP_CONTENT = [
+    ("title", "USB-Floss Magic"),
+    ("space", ""),
+    ("text", "Nettoie une clé USB des fichiers inutiles"),
+    ("text", "créés par macOS, Windows ou Linux."),
+    ("space", ""),
+    ("title2", "Utilisation"),
+    ("bullet", "1. Branche une clé USB."),
+    ("bullet", "2. Elle apparaît automatiquement en bas à droite."),
+    ("bullet", "3. Le nombre de fichiers trouvés s'affiche."),
+    ("bullet", "4. Clique sur le rond central pour nettoyer."),
+    ("space", ""),
+    ("title2", "Éjecter la clé"),
+    ("text", "Coche « Nettoyer et Éjecter » pour que la clé"),
+    ("text", "soit éjectée automatiquement après le nettoyage."),
+    ("space", ""),
+    ("title2", "Fichiers ignorés"),
+    ("text", "Certains dossiers protégés par le système (comme"),
+    ("text", ".Spotlight-V100 et .Trashes) sont laissés en place."),
+    ("text", "Ils ne gênent pas et sont recréés automatiquement."),
+    ("space", ""),
+    ("title2", "Limite de taille"),
+    ("text", "Seules les clés USB et disques externes de moins"),
+    ("text", "de 256 Go sont proposés automatiquement dans la liste."),
+    ("text", "Au-delà, la clé n'apparaît pas : utilisez la ligne"),
+    ("text", "de commande usbfloss.py en mode direct si besoin."),
+    ("space", ""),
+    ("title2", "Voir le détail"),
+    ("text", "Clique sur « X élément(s) trouvé(s) » pour voir"),
+    ("text", "la liste complète des fichiers détectés."),
+    ("space", ""),
+    ("sep", ""),
+    ("credit", "© 2026 — ritchy-lab"),
+    ("link", GITHUB_URL.replace("https://", "")),
+]
+
+
 class _CanvasLabel:
     def __init__(self, canvas, x, y, text, font, fill,
-                 anchor="w", tags=(), on_change=None):
+                 anchor="w", tags=(), on_change=None, shadow=True):
         self.canvas = canvas
         self._on_change = on_change
-        self._shadow = canvas.create_text(
-            x + 1, y + 1, text=text, font=font, fill=SHADOW_COLOR,
-            anchor=anchor, tags=tags,
-        )
+        self._shadow = None
+        if shadow:
+            self._shadow = canvas.create_text(
+                x + 1, y + 1, text=text, font=font, fill=SHADOW_COLOR,
+                anchor=anchor, tags=tags,
+            )
         self._id = canvas.create_text(
             x, y, text=text, font=font, fill=fill,
             anchor=anchor, tags=tags,
@@ -122,7 +164,8 @@ class _CanvasLabel:
 
     def configure(self, text=None, fg=None):
         if text is not None:
-            self.canvas.itemconfigure(self._shadow, text=text)
+            if self._shadow is not None:
+                self.canvas.itemconfigure(self._shadow, text=text)
             self.canvas.itemconfigure(self._id, text=text)
         if fg is not None:
             self.canvas.itemconfigure(self._id, fill=fg)
@@ -131,7 +174,8 @@ class _CanvasLabel:
 
     def move_to(self, x, y):
         self.canvas.coords(self._id, x, y)
-        self.canvas.coords(self._shadow, x + 1, y + 1)
+        if self._shadow is not None:
+            self.canvas.coords(self._shadow, x + 1, y + 1)
 
     def bbox(self):
         return self.canvas.bbox(self._id)
@@ -168,6 +212,10 @@ class USBFlossMagicApp(ctk.CTk):
         self._scan_pending = False
         self._busy = False
         self._closing = False
+        self._help_popup = None
+        self._help_canvas = None
+        self._help_scroll_acc = 0.0
+        self.bind_all("<TouchpadScroll>", self._on_help_scroll, add="+")
 
         self._drag_x = 0
         self._drag_y = 0
@@ -365,6 +413,7 @@ class USBFlossMagicApp(ctk.CTk):
             CYAN,
             anchor="w",
             tags=("clean_it",),
+            shadow=True,
         )
 
         self._bind_tag(
@@ -712,8 +761,38 @@ class USBFlossMagicApp(ctk.CTk):
             icon=popup_data["icon"],
         )
 
+    def _on_help_scroll(self, event):
+        pop = self._help_popup
+        cv = self._help_canvas
+        if pop is None or cv is None or not pop.winfo_exists():
+           return
+        # Seulement quand le pointeur est sur la fenêtre d'aide
+        if not str(event.widget).startswith(str(pop)):
+           return
+        try:
+            dx, dy = (int(str(v)) for v in self.tk.splitlist(
+                self.tk.call("tk::PreciseScrollDeltas", event.delta)))
+        except Exception:
+            return
+        if dy == 0:
+            return
+        # On cumule les petits gestes : le canvas avance par pas de plusieurs pixels
+        step = int(str(cv.cget("yscrollincrement"))) or 1
+        self._help_scroll_acc += -dy
+        units = int(self._help_scroll_acc / step)
+        if units:
+            cv.yview_scroll(units, "units")
+            self._help_scroll_acc -= units * step
+            
     def _open_help(self):
+        # Une seule fenêtre d'aide à la fois
+        if self._help_popup is not None and self._help_popup.winfo_exists():
+            self._help_popup.lift()
+            self._help_popup.focus_force()
+            return
+
         popup = ctk.CTkToplevel(self)
+        self._help_popup = popup
         popup.title("Aide — USB-Floss Magic")
         popup.resizable(False, False)
         popup.transient(self)
@@ -749,44 +828,9 @@ class USBFlossMagicApp(ctk.CTk):
             height=420,
         )
         content.pack(fill="both", expand=True, padx=15, pady=(15, 10))
+        self._help_canvas = content._parent_canvas
 
-        contenu = [
-            ("title", "USB-Floss Magic"),
-            ("space", ""),
-            ("text", "Nettoie une clé USB des fichiers inutiles"),
-            ("text", "créés par macOS, Windows ou Linux."),
-            ("space", ""),
-            ("title2", "Utilisation"),
-            ("bullet", "1. Branche une clé USB."),
-            ("bullet", "2. Elle apparaît automatiquement en bas à droite."),
-            ("bullet", "3. Le nombre de fichiers trouvés s'affiche."),
-            ("bullet", "4. Clique sur le rond central pour nettoyer."),
-            ("space", ""),
-            ("title2", "Éjecter la clé"),
-            ("text", "Coche « Nettoyer et Éjecter » pour que la clé"),
-            ("text", "soit éjectée automatiquement après le nettoyage."),
-            ("space", ""),
-            ("title2", "Fichiers ignorés"),
-            ("text", "Certains dossiers protégés par le système (comme"),
-            ("text", ".Spotlight-V100 et .Trashes) sont laissés en place."),
-            ("text", "Ils ne gênent pas et sont recréés automatiquement."),
-            ("space", ""),
-            ("title2", "Limite de taille"),
-            ("text", "Seules les clés USB et disques externes de moins"),
-            ("text", "de 256 Go sont proposés automatiquement dans la liste."),
-            ("text", "Au-delà, la clé n'apparaît pas : utilisez la ligne"),
-            ("text", "de commande usbfloss.py en mode direct si besoin."),
-            ("space", ""),
-            ("title2", "Voir le détail"),
-            ("text", "Clique sur « X élément(s) trouvé(s) » pour voir"),
-            ("text", "la liste complète des fichiers détectés."),
-            ("space", ""),
-            ("sep", ""),
-            ("credit", "© 2026 — ritchy-lab"),
-            ("link", "github.com/ritchy-lab/USB-Floss-Magic"),
-        ]
-
-        for kind, txt in contenu:
+        for kind, txt in HELP_CONTENT:
             if kind == "space":
                 tk.Label(content, text="", bg=BG_MAIN, height=1).pack()
             elif kind == "title":
@@ -821,7 +865,7 @@ class USBFlossMagicApp(ctk.CTk):
                     cursor=CURSOR_HAND,
                 )
                 lbl.pack(fill="x")
-                lbl.bind("<Button-1>", lambda e: self._open_link("https://github.com/ritchy-lab/USB-Floss-Magic"))
+                lbl.bind("<Button-1>", lambda e: self._open_link(GITHUB_URL))
             elif kind == "sep":
                 tk.Frame(content, height=1, bg="#2A3A48").pack(fill="x", pady=8)
             else:
@@ -866,7 +910,6 @@ class USBFlossMagicApp(ctk.CTk):
         popup.after(150, _grab)
 
     def _open_link(self, url):
-        import webbrowser
         webbrowser.open(url)
 
     def _eject_volume(self, volume_path):
