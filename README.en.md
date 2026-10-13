@@ -13,6 +13,14 @@ needs them, so no data is ever lost**.
 
 ## Download
 
+**With Homebrew:**
+
+```bash
+brew install --cask ritchy-lab/tap/usb-floss-magic
+```
+
+**Or manually:**
+
 The ready-to-use version (macOS app for **Apple Silicon**, M1 and later) is in
 [**Releases**](https://github.com/ritchy-lab/USB-Floss-Magic/releases/latest):
 download the `.zip`, unzip it, then drag the application into `Applications`.
