@@ -34,6 +34,10 @@ the window.
 
 The interface speaks French or English depending on the language of your Mac.
 
+## In action
+
+![USB-Floss Magic in action: 12 files found, one click, the drive is cleaned](demo.gif)
+
 ## Messages
 
 The application keeps you informed without ever alarming you:

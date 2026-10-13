@@ -34,6 +34,10 @@ sécurité**, puis « Ouvrir quand même » en bas de la fenêtre.
 - peut éjecter la clé juste après le nettoyage (case « Nettoyer et Éjecter ») ;
 - clique sur « X élément(s) trouvé(s) » pour voir la liste complète.
 
+## En action
+
+![USB-Floss Magic en action : 12 fichiers détectés, un clic, la clé est nettoyée](demo.gif)
+
 ## Les messages
 
 L'application te tient au courant sans jamais t'inquiéter :
