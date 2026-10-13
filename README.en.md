@@ -34,6 +34,12 @@ the window.
 
 The interface speaks French or English depending on the language of your Mac.
 
+## Messages
+
+The application keeps you informed without ever alarming you:
+
+![The three message windows: success, warning, error](apercu-messages.png)
+
 ## Installation (to run from the source)
 
 You need **Python 3.10 or later** and **macOS** (volumes are read from

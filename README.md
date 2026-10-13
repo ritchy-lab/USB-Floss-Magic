@@ -34,6 +34,12 @@ sécurité**, puis « Ouvrir quand même » en bas de la fenêtre.
 - peut éjecter la clé juste après le nettoyage (case « Nettoyer et Éjecter ») ;
 - clique sur « X élément(s) trouvé(s) » pour voir la liste complète.
 
+## Les messages
+
+L'application te tient au courant sans jamais t'inquiéter :
+
+![Les trois fenêtres de message : succès, avertissement, erreur](apercu-messages.png)
+
 ## Installation (pour lancer depuis le code)
 
 Il faut **Python 3.10 ou plus récent** et **macOS** (les volumes sont lus dans
