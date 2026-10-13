@@ -1,5 +1,7 @@
 # USB-Floss Magic
 
+🇬🇧 **[English version](README.en.md)**
+
 Nettoie une clé USB des fichiers inutiles que macOS, Windows ou Linux y laissent :
 `.DS_Store`, `._fichier`, `Thumbs.db`, `Desktop.ini`, `.Spotlight-V100`…
 
@@ -82,7 +84,7 @@ pyinstaller --noconfirm --clean "USB-Floss Magic.spec"
 xattr -cr "dist/USB-Floss Magic.app"
 codesign --force --deep --sign - "dist/USB-Floss Magic.app"
 ditto -c -k --norsrc --noextattr --noacl --keepParent \
-  "dist/USB-Floss Magic.app" "dist/USB-Floss-Magic-0.6-macOS-arm64.zip"
+  "dist/USB-Floss Magic.app" "dist/USB-Floss-Magic-0.7-macOS-arm64.zip"
 ```
 
 Le résultat est dans `dist/USB-Floss Magic.app`. Les images (`background.png`,

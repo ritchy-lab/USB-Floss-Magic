@@ -15,7 +15,7 @@
 set -e
 
 cd "$(dirname "$0")"
-VERSION=0.6
+VERSION=0.7
 NOM="USB-Floss Magic"
 TMP="$(mktemp -d)"
 DIST="$TMP/dist"

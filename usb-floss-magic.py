@@ -7,6 +7,7 @@
 import logging
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -124,7 +125,115 @@ MAX_POPUP_ROWS = 2000
 # La liste vient du cœur (usbfloss.JUNK_DIRS) pour ne pas la recopier.
 PROTECTED_NAMES = set(JUNK_DIRS)
 
-APP_VERSION = "0.6"
+APP_VERSION = "0.7"
+
+
+# ------------------------------------------------------------------
+# Langue de l'interface : celle du Mac (français, sinon anglais)
+# ------------------------------------------------------------------
+def _langue_systeme():
+    """« fr » si le Mac est en français, « en » dans tous les autres cas."""
+    brut = ""
+    if sys.platform == "darwin":
+        try:
+            brut = subprocess.run(
+                ["defaults", "read", "-g", "AppleLanguages"],
+                capture_output=True, text=True, timeout=5,
+            ).stdout
+        except Exception:
+            brut = ""
+    if not brut:
+        brut = os.environ.get("LANG") or os.environ.get("LC_ALL") or ""
+    trouve = re.search(r'"([^"]+)"', brut)
+    code = trouve.group(1) if trouve else brut
+    return "fr" if code[:2].lower() == "fr" else "en"
+
+
+LANGUE = _langue_systeme()
+
+TEXTES = {
+    "fr": {
+        "aucun_fichier": "> Aucun fichier",
+        "trouves": "> {n} élément(s) trouvé(s)",
+        "nettoyer_ejecter": "Nettoyer et Éjecter",
+        "aucun": "Aucun",
+        "erreur_suppression": "Erreur pendant la suppression :\n{err}",
+        "titre_erreur": "Erreur",
+        "supprimes": "{ok} élément(s) supprimé(s).",
+        "titre_bravo": "Bravo !",
+        "echecs": "{ok} supprimé(s), {ko} échec(s).\n\nCertains fichiers n'ont pas pu être supprimés.",
+        "titre_attention": "Attention",
+        "eject_titre": "Éjection impossible :\n{err}",
+        "eject_non_pris_en_charge": "Éjection non prise en charge sur ce système.",
+        "eject_delai": "La clé ne répond pas (délai de {n} s dépassé).",
+        "erreur_inattendue": "Erreur inattendue : {err}",
+        "eject_bloquee": "Une application bloque la clé 🛑\n\nFerme l'application pour la libérer 🔓",
+        "eject_deja_retiree": "La clé a déjà été retirée.",
+        "eject_plus_montee": "La clé n'est plus montée.",
+        "eject_sans_reponse": "La clé ne répond pas.",
+        "eject_detail": "Éjection impossible.\n\nDétail technique :\n{extrait}",
+        "eject_inconnue": "Éjection impossible (raison inconnue).",
+        "plus_tard": "Plus tard",
+        "fermer": "Fermer",
+        "don_bientot": "\n\n(Le lien de don arrive très bientôt !)",
+        "aide_titre": "Aide — USB-Floss Magic",
+        "liste_titre": "Fichiers trouvés",
+        "liste_compte": "{n} élément(s) trouvé(s)",
+        "ignore_decale": "    (ignoré)",
+        "donate_titre": "le labo tourne au café,",
+        "donate_bouton": "Offrir un café ☕",
+        "donate_message": (
+            "J'ai passé des soirées à traquer les .DS_Store, les ._cache, et tous "
+            "ces fichiers fantômes que macOS laisse derrière lui. Ta clé USB ne te "
+            "remerciera jamais.\n\n"
+            "Moi, si.\n\n"
+            "☕ ko-fi.com/ritchy_lab"
+        ),
+    },
+    "en": {
+        "aucun_fichier": "> No file",
+        "trouves": "> {n} item(s) found",
+        "nettoyer_ejecter": "Clean and Eject",
+        "aucun": "None",
+        "erreur_suppression": "Error while deleting:\n{err}",
+        "titre_erreur": "Error",
+        "supprimes": "{ok} item(s) removed.",
+        "titre_bravo": "Well done!",
+        "echecs": "{ok} removed, {ko} failed.\n\nSome files could not be deleted.",
+        "titre_attention": "Warning",
+        "eject_titre": "Could not eject:\n{err}",
+        "eject_non_pris_en_charge": "Ejecting is not supported on this system.",
+        "eject_delai": "The drive is not responding ({n} s timeout).",
+        "erreur_inattendue": "Unexpected error: {err}",
+        "eject_bloquee": "An application is using the drive 🛑\n\nClose it to release the drive 🔓",
+        "eject_deja_retiree": "The drive has already been removed.",
+        "eject_plus_montee": "The drive is no longer mounted.",
+        "eject_sans_reponse": "The drive is not responding.",
+        "eject_detail": "Could not eject.\n\nTechnical detail:\n{extrait}",
+        "eject_inconnue": "Could not eject (unknown reason).",
+        "plus_tard": "Later",
+        "fermer": "Close",
+        "don_bientot": "\n\n(The donation link is coming very soon!)",
+        "aide_titre": "Help — USB-Floss Magic",
+        "liste_titre": "Files found",
+        "liste_compte": "{n} item(s) found",
+        "ignore_decale": "    (ignored)",
+        "donate_titre": "this lab runs on coffee,",
+        "donate_bouton": "Buy me a coffee ☕",
+        "donate_message": (
+            "I spent evenings chasing .DS_Store, ._cache and all those ghost "
+            "files macOS leaves behind. Your USB drive will never thank you.\n\n"
+            "I will.\n\n"
+            "☕ ko-fi.com/ritchy_lab"
+        ),
+    },
+}
+
+
+def TR(cle, **valeurs):
+    """Texte dans la langue du système (l'anglais sert de secours)."""
+    texte = TEXTES[LANGUE].get(cle) or TEXTES["en"].get(cle) or cle
+    return texte.format(**valeurs) if valeurs else texte
 
 
 GITHUB_URL = "https://github.com/ritchy-lab/USB-Floss-Magic"
@@ -135,52 +244,85 @@ GITHUB_URL = "https://github.com/ritchy-lab/USB-Floss-Magic"
 # Lien de la page de don. Vide = la fenêtre s'ouvre sans bouton de don.
 DONATE_URL = "https://ko-fi.com/ritchy_lab"
 
-DONATE_TITLE = "le labo tourne au café,"
-DONATE_BUTTON = "Offrir un café ☕"
-DONATE_MESSAGE = (
-    "J'ai passé des soirées à traquer les .DS_Store, les ._cache, et tous "
-    "ces fichiers fantômes que macOS laisse derrière lui. Ta clé USB ne te "
-    "remerciera jamais.\n\n"
-    "Moi, si.\n\n"
-    "☕ ko-fi.com/ritchy_lab"
-)
+# Lues au moment de l'affichage, pour suivre la langue courante.
+DONATE_TITRE_CLE = "donate_titre"
+DONATE_BOUTON_CLE = "donate_bouton"
+DONATE_MESSAGE_CLE = "donate_message"
 
-HELP_CONTENT = [
-    ("title", "USB-Floss Magic"),
-    ("space", ""),
-    ("text", "Nettoie une clé USB des fichiers inutiles"),
-    ("text", "créés par macOS, Windows ou Linux."),
-    ("space", ""),
-    ("title2", "Utilisation"),
-    ("bullet", "1. Branche une clé USB."),
-    ("bullet", "2. Elle apparaît automatiquement en bas à droite."),
-    ("bullet", "3. Le nombre de fichiers trouvés s'affiche."),
-    ("bullet", "4. Clique sur le rond central pour nettoyer."),
-    ("space", ""),
-    ("title2", "Éjecter la clé"),
-    ("text", "Coche « Nettoyer et Éjecter » pour que la clé"),
-    ("text", "soit éjectée automatiquement après le nettoyage."),
-    ("space", ""),
-    ("title2", "Fichiers ignorés"),
-    ("text", "Certains dossiers protégés par le système (comme"),
-    ("text", ".Spotlight-V100 et .Trashes) sont laissés en place."),
-    ("text", "Ils ne gênent pas et sont recréés automatiquement."),
-    ("space", ""),
-    ("title2", "Limite de taille"),
-    ("text", "Seules les clés USB et disques externes de moins"),
-    ("text", f"de {MAX_VOLUME_SIZE_GB} Go sont proposés automatiquement."),
-    ("text", "Au-delà, la clé n'apparaît pas : utilisez la ligne"),
-    ("text", "de commande usbfloss.py en mode direct si besoin."),
-    ("space", ""),
-    ("title2", "Voir le détail"),
-    ("text", "Clique sur « X élément(s) trouvé(s) » pour voir"),
-    ("text", "la liste complète des fichiers détectés."),
-    ("space", ""),
-    ("sep", ""),
-    ("donate", "☕  Soutenir le projet"),
-    ("credit", f"© 2026 — ritchy-lab — version {APP_VERSION}"),
-    ("link", GITHUB_URL.replace("https://", "")),
-]
+HELP_CONTENT = {
+    "fr": [
+        ("title", "USB-Floss Magic"),
+        ("space", ""),
+        ("text", "Nettoie une clé USB des fichiers inutiles"),
+        ("text", "créés par macOS, Windows ou Linux."),
+        ("space", ""),
+        ("title2", "Utilisation"),
+        ("bullet", "1. Branche une clé USB."),
+        ("bullet", "2. Elle apparaît automatiquement en bas à droite."),
+        ("bullet", "3. Le nombre de fichiers trouvés s'affiche."),
+        ("bullet", "4. Clique sur le rond central pour nettoyer."),
+        ("space", ""),
+        ("title2", "Éjecter la clé"),
+        ("text", "Coche « Nettoyer et Éjecter » pour que la clé"),
+        ("text", "soit éjectée automatiquement après le nettoyage."),
+        ("space", ""),
+        ("title2", "Fichiers ignorés"),
+        ("text", "Certains dossiers protégés par le système (comme"),
+        ("text", ".Spotlight-V100 et .Trashes) sont laissés en place."),
+        ("text", "Ils ne gênent pas et sont recréés automatiquement."),
+        ("space", ""),
+        ("title2", "Limite de taille"),
+        ("text", "Seules les clés USB et disques externes de moins"),
+        ("text", f"de {MAX_VOLUME_SIZE_GB} Go sont proposés automatiquement."),
+        ("text", "Au-delà, la clé n'apparaît pas : utilisez la ligne"),
+        ("text", "de commande usbfloss.py en mode direct si besoin."),
+        ("space", ""),
+        ("title2", "Voir le détail"),
+        ("text", "Clique sur « X élément(s) trouvé(s) » pour voir"),
+        ("text", "la liste complète des fichiers détectés."),
+        ("space", ""),
+        ("sep", ""),
+        ("donate", "☕  Soutenir le projet"),
+        ("credit", f"© 2026 — ritchy-lab — version {APP_VERSION}"),
+        ("link", GITHUB_URL.replace("https://", "")),
+    ],
+    "en": [
+        ("title", "USB-Floss Magic"),
+        ("space", ""),
+        ("text", "Cleans a USB drive of the useless files left"),
+        ("text", "behind by macOS, Windows or Linux."),
+        ("space", ""),
+        ("title2", "How to use it"),
+        ("bullet", "1. Plug in a USB drive."),
+        ("bullet", "2. It shows up automatically at the bottom right."),
+        ("bullet", "3. The number of files found is displayed."),
+        ("bullet", "4. Click the central disc to clean."),
+        ("space", ""),
+        ("title2", "Ejecting the drive"),
+        ("text", "Tick \u201cClean and Eject\u201d so the drive is"),
+        ("text", "ejected automatically after cleaning."),
+        ("space", ""),
+        ("title2", "Ignored files"),
+        ("text", "Some folders protected by the system (such as"),
+        ("text", ".Spotlight-V100 and .Trashes) are left in place."),
+        ("text", "They are harmless and recreated automatically."),
+        ("space", ""),
+        ("title2", "Size limit"),
+        ("text", "Only USB drives and external disks under"),
+        ("text", f"{MAX_VOLUME_SIZE_GB} GB are offered automatically."),
+        ("text", "Beyond that the drive does not appear: use the"),
+        ("text", "usbfloss.py command line in direct mode if needed."),
+        ("space", ""),
+        ("title2", "See the details"),
+        ("text", "Click \u201cX item(s) found\u201d to see the full list"),
+        ("text", "of the detected files."),
+        ("space", ""),
+        ("sep", ""),
+        ("donate", "☕  Support the project"),
+        ("credit", f"© 2026 — ritchy-lab — version {APP_VERSION}"),
+        ("link", GITHUB_URL.replace("https://", "")),
+    ],
+}
 
 
 class _CanvasLabel:
@@ -504,7 +646,7 @@ class USBFlossMagicApp(ctk.CTk):
         y1 = INNER_Y0 + WIN_H - 2 * BORDER_MARGIN - 6 - BOTTOM_LINE_1_OFFSET
 
         self.counter_label = _CanvasLabel(
-            self.canvas, left, y1, "> Aucun fichier",
+            self.canvas, left, y1, TR("aucun_fichier"),
             (FONT_MAIN, 10), TEXT_DIM, anchor="w", tags=("counter",),
         )
         self._bind_tag(
@@ -513,7 +655,7 @@ class USBFlossMagicApp(ctk.CTk):
         )
 
         self.eject_text = _CanvasLabel(
-            self.canvas, right, y1, "Nettoyer et Éjecter",
+            self.canvas, right, y1, TR("nettoyer_ejecter"),
             (FONT_MAIN, 10), TEXT_GREY, anchor="e", tags=("eject",),
         )
         text_x0 = self.eject_text.bbox()[0]
@@ -531,7 +673,7 @@ class USBFlossMagicApp(ctk.CTk):
             (FONT_MAIN, 14, "normal"), CYAN, anchor="e", tags=("vol",),
         )
         self.vol_name = _CanvasLabel(
-            self.canvas, 0, self._vol_y, "Aucun",
+            self.canvas, 0, self._vol_y, TR("aucun"),
             (FONT_MAIN, 14, "normal"), CYAN, anchor="e", tags=("vol",),
             on_change=self._layout_volume_line,
         )
@@ -680,7 +822,7 @@ class USBFlossMagicApp(ctk.CTk):
 
         if not paths:
             self.current_volume = None
-            self.vol_name.configure(text="Aucun")
+            self.vol_name.configure(text=TR("aucun"))
             self._set_junk([])
             return
 
@@ -747,10 +889,10 @@ class USBFlossMagicApp(ctk.CTk):
         n = len(self.current_junk)
 
         if n:
-            text = f"> {n} élément(s) trouvé(s)"
+            text = TR("trouves", n=n)
             color = CYAN
         else:
-            text = "> Aucun fichier"
+            text = TR("aucun_fichier")
             color = TEXT_DIM
 
         self.counter_label.configure(text=text, fg=color)
@@ -816,27 +958,27 @@ class USBFlossMagicApp(ctk.CTk):
 
         if error is not None:
             popups.append({
-                "message": f"Erreur pendant la suppression :\n{error}",
-                "title": "Erreur",
+                "message": TR("erreur_suppression", err=error),
+                "title": TR("titre_erreur"),
                 "icon": "error",
             })
         elif ko == 0:
             popups.append({
-                "message": f"{ok} élément(s) supprimé(s).",
-                "title": "Bravo !",
+                "message": TR("supprimes", ok=ok),
+                "title": TR("titre_bravo"),
                 "icon": "success",
             })
         else:
             popups.append({
-                "message": f"{ok} supprimé(s), {ko} échec(s).\n\nCertains fichiers n'ont pas pu être supprimés.",
-                "title": "Attention",
+                "message": TR("echecs", ok=ok, ko=ko),
+                "title": TR("titre_attention"),
                 "icon": "warning",
             })
 
         if eject_error:
             popups.append({
-                "message": f"Éjection impossible :\n{eject_error}",
-                "title": "Attention",
+                "message": TR("eject_titre", err=eject_error),
+                "title": TR("titre_attention"),
                 "icon": "warning",
             })
 
@@ -896,7 +1038,7 @@ class USBFlossMagicApp(ctk.CTk):
 
         popup = ctk.CTkToplevel(self)
         self._help_popup = popup
-        popup.title("Aide — USB-Floss Magic")
+        popup.title(TR("aide_titre"))
         popup.resizable(False, False)
         popup.transient(self)
         popup.configure(fg_color=BG_MAIN)
@@ -933,7 +1075,7 @@ class USBFlossMagicApp(ctk.CTk):
         content.pack(fill="both", expand=True, padx=15, pady=(15, 10))
         self._help_canvas = content._parent_canvas
 
-        for kind, txt in HELP_CONTENT:
+        for kind, txt in HELP_CONTENT[LANGUE]:
             if kind == "space":
                 tk.Label(content, text="", bg=BG_MAIN, height=1).pack()
             elif kind == "title":
@@ -1041,27 +1183,27 @@ class USBFlossMagicApp(ctk.CTk):
 
     def _open_donate(self):
         """Fenêtre « offre-moi un café », ouverte par la signature."""
+        message = TR(DONATE_MESSAGE_CLE)
         if DONATE_URL:
             buttons = [
-                (DONATE_BUTTON, lambda: self._open_link(DONATE_URL)),
-                ("Plus tard", None),
+                (TR(DONATE_BOUTON_CLE), lambda: self._open_link(DONATE_URL)),
+                (TR("plus_tard"), None),
             ]
-            message = DONATE_MESSAGE
         else:
             # Lien pas encore renseigné : on n'affiche rien de cassé.
-            buttons = [("Fermer", None)]
-            message = DONATE_MESSAGE + "\n\n(Le lien de don arrive très bientôt !)"
+            buttons = [(TR("fermer"), None)]
+            message += TR("don_bientot")
 
         self._custom_dialog(
             message=message,
             buttons=buttons,
-            title=DONATE_TITLE,
+            title=TR(DONATE_TITRE_CLE),
             icon="success",
         )
 
     def _eject_volume(self, volume_path):
         if sys.platform != "darwin":
-            return "Éjection non prise en charge sur ce système."
+            return TR("eject_non_pris_en_charge")
         try:
             res = subprocess.run(
                 ["diskutil", "eject", str(volume_path)],
@@ -1070,9 +1212,9 @@ class USBFlossMagicApp(ctk.CTk):
                 timeout=EJECT_TIMEOUT,
             )
         except subprocess.TimeoutExpired:
-            return f"La clé ne répond pas (délai de {EJECT_TIMEOUT} s dépassé)."
+            return TR("eject_delai", n=EJECT_TIMEOUT)
         except Exception as e:
-            return f"Erreur inattendue : {e}"
+            return TR("erreur_inattendue", err=e)
 
         if res.returncode != 0:
             return self._translate_eject_error(res.stderr or res.stdout or "")
@@ -1082,21 +1224,18 @@ class USBFlossMagicApp(ctk.CTk):
         low = raw.lower()
 
         if "could not be unmounted" in low or "dissent" in low:
-            return (
-                "Une application bloque la clé 🛑\n\n"
-                "Ferme l'application pour la libérer 🔓"
-            )
+            return TR("eject_bloquee")
         if "was not found" in low or "no such file" in low:
-            return "La clé a déjà été retirée."
+            return TR("eject_deja_retiree")
         if "not mounted" in low:
-            return "La clé n'est plus montée."
+            return TR("eject_plus_montee")
         if "timeout" in low:
-            return "La clé ne répond pas."
+            return TR("eject_sans_reponse")
 
         excerpt = raw.strip()[:200]
         if excerpt:
-            return f"Éjection impossible.\n\nDétail technique :\n{excerpt}"
-        return "Éjection impossible (raison inconnue)."
+            return TR("eject_detail", extrait=excerpt)
+        return TR("eject_inconnue")
 
     def _custom_dialog(self, message, buttons, title=None, subtitle=None, icon=None):
         popup = ctk.CTkToplevel(self)
@@ -1187,7 +1326,7 @@ class USBFlossMagicApp(ctk.CTk):
             # Boutons « secondaires » (contour gris). « Fermer » n'en est pas
             # un : tout seul dans une fenêtre, c'est l'action principale.
             is_cancel = label.lower() in (
-                "annuler", "non", "cancel", "plus tard",
+                "annuler", "non", "cancel", "no", "plus tard", "later",
             )
             btn = ctk.CTkButton(
                 btn_frame,
@@ -1242,7 +1381,7 @@ class USBFlossMagicApp(ctk.CTk):
 
         popup = ctk.CTkToplevel(self)
         self._list_popup = popup
-        popup.title("Fichiers trouvés")
+        popup.title(TR("liste_titre"))
         popup.resizable(False, False)
         popup.transient(self)
         popup.configure(fg_color="#0A0F14")
@@ -1313,7 +1452,7 @@ class USBFlossMagicApp(ctk.CTk):
         volume = self.current_volume
         titre = getattr(self, "_list_title", None)
         if titre is not None and titre.winfo_exists():
-            titre.configure(text=f"{len(items)} élément(s) trouvé(s)")
+            titre.configure(text=TR("liste_compte", n=len(items)))
 
         position = box.yview()[0]          # on garde la position de lecture
 
@@ -1325,7 +1464,7 @@ class USBFlossMagicApp(ctk.CTk):
             rel = (str(path.relative_to(volume))
                    if volume and path.is_relative_to(volume) else str(path))
             if self._is_protected(path):
-                lines.append(f"{rel}    (ignoré)")
+                lines.append(f"{rel}" + TR("ignore_decale"))
                 ignored_lines.append(len(lines))
             else:
                 lines.append(rel)

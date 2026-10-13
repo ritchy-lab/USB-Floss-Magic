@@ -51,9 +51,9 @@ app = BUNDLE(
     name='USB-Floss Magic.app',
     icon='icon.icns',
     bundle_identifier='com.ritchy-lab.usb-floss-magic',
-    version='0.6',
+    version='0.7',
     info_plist={
-        'CFBundleShortVersionString': '0.6',
+        'CFBundleShortVersionString': '0.7',
         'NSHumanReadableCopyright': '© 2026 ritchy-lab',
         'LSMinimumSystemVersion': '11.0',
     },
