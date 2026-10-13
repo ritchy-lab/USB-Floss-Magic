@@ -42,7 +42,7 @@ sécurité**, puis « Ouvrir quand même » en bas de la fenêtre.
 
 L'application te tient au courant sans jamais t'inquiéter :
 
-![Les trois fenêtres de message : succès, avertissement, erreur](apercu-messages.png)
+![Les trois fenêtres de message : succès, avertissement, erreur](fenetres-messages.png)
 
 ## Installation (pour lancer depuis le code)
 
