@@ -36,7 +36,7 @@ sécurité**, puis « Ouvrir quand même » en bas de la fenêtre.
 
 ## En action
 
-![USB-Floss Magic en action : 12 fichiers détectés, un clic, la clé est nettoyée](demo.gif)
+![USB-Floss Magic en action : la liste des fichiers trouvés, l'option d'éjection, un clic, la clé est nettoyée](demo.gif)
 
 ## Les messages
 

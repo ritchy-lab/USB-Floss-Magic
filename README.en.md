@@ -36,7 +36,7 @@ The interface speaks French or English depending on the language of your Mac.
 
 ## In action
 
-![USB-Floss Magic in action: 12 files found, one click, the drive is cleaned](demo.gif)
+![USB-Floss Magic in action: the list of files found, the eject option, one click, the drive is cleaned](demo.gif)
 
 ## Messages
 
