@@ -42,7 +42,7 @@ The interface speaks French or English depending on the language of your Mac.
 
 The application keeps you informed without ever alarming you:
 
-![The three message windows: success, warning, error](fenetres-messages.png)
+![The three message windows: success, warning, error](messages.png)
 
 ## Installation (to run from the source)
 
